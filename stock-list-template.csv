@@ -1,0 +1,6 @@
+Category,Brand,Model / Name,Capacity,Type,Has serial number (Y/N),MRP,Retail price,Dealer price,Purchase price,Warranty free months,Warranty pro-rata months,Current stock qty,Low stock alert at,Notes
+Inverter battery,Amaron,150Ah Tall Tubular,150Ah,Tall tubular,Y,,,,,,,,,EXAMPLE ROW - replace with real data
+Automotive battery - car,Exide,35Ah car battery,35Ah,SMF,Y,,,,,,,,,EXAMPLE ROW - replace with real data
+Inverter,Microtek,900VA sine wave inverter,900VA,Sine wave,Y,,,,,,,,,EXAMPLE ROW - replace with real data
+Accessory,,Battery trolley,,,N,,,,,,,,,EXAMPLE ROW - replace with real data
+Service,,Delivery & installation,,,N,,300,300,,,,,,EXAMPLE ROW - price can be changed on each bill
