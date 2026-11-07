@@ -55,7 +55,10 @@ export type AttentionItem =
   | { kind: "bajaj_pending"; count: number; amountPaise: Paise }
   | { kind: "old_stock"; count: number };
 
-export type BackupStatus = { state: "not_set_up" } | { state: "missing" } | { state: "done"; at: string };
+export type BackupStatus =
+  | { state: "not_set_up" }
+  | { state: "missing"; lastAt: string }
+  | { state: "done"; at: string; rows: number };
 
 // ---------- Products, customers and bills ----------
 
@@ -220,6 +223,61 @@ export interface BillPayment {
   charges: Paise;
   reference: string;
   status: "saved" | "cancelled";
+  /** yyyy-mm-dd; set for udhaar paid later (Preview mode). */
+  paidOn?: string;
+}
+
+// ---------- Customers, udhaar and Bajaj ----------
+
+export interface CustomerDues extends Customer {
+  dues: Paise;
+  billCount: number;
+  /** Date of the oldest bill still unpaid. */
+  oldestDue: string | null;
+  lastBill: string | null;
+}
+
+export interface CustomerPaymentRow {
+  /** yyyy-mm-dd */
+  date: string;
+  mode: PaymentMode;
+  amount: Paise;
+  billId: string | null;
+  billNumber: string | null;
+  status: "saved" | "cancelled";
+}
+
+export interface OwnedUnit {
+  unitId: string;
+  serial: string;
+  product: string;
+  /** yyyy-mm-dd */
+  soldOn: string | null;
+  warrantyStart: string | null;
+  freeMonths: number;
+  prorataMonths: number;
+  registeredAt: string | null;
+  needsRegistration: boolean;
+}
+
+export type BillPaymentModeNoBajaj = Exclude<PaymentMode, "bajaj">;
+
+export interface ReceivePaymentInput {
+  customerId: string;
+  amount: Paise;
+  mode: BillPaymentModeNoBajaj;
+  reference: string;
+}
+
+export interface PendingFinance {
+  id: string;
+  billId: string;
+  billNumber: string;
+  customerName: string;
+  /** yyyy-mm-dd */
+  billDate: string;
+  loanAmount: Paise;
+  referenceNo: string;
 }
 
 export interface ShopForBill {

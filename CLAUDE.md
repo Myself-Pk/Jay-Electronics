@@ -22,6 +22,10 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 - The stock-list import (`src/pages/stock/stockImport.ts`) reads `stock-list-template.csv` saved from Excel as CSV.
 - `npm run dev:demo` runs the app on port 5174 in Preview mode (sample data) even when `.env.local` has the real keys.
 
+## Udhaar, Bajaj and backups
+- `receive_payment(jsonb)` applies a customer's money to their oldest unpaid bills first; `settle_finance(jsonb)` marks Bajaj money received; `v_customer_dues` lists dues. Preview copies in `src/data/preview-payments.ts`.
+- `npm run backup` (scripts/backup.mjs) saves a dated folder (full JSON + Excel-readable CSVs) to `BACKUP_DIR` or `backups/`, logs it in `backup_log` (shown on Home). `npm run backup:schedule` registers an hourly hidden Windows task (`--if-due`: one backup a day after 7 PM, or immediately if the last is >24 h old). `npm run restore -- <folder>` puts a backup into an empty project (logins get temporary PINs). Dates must stay as `yyyy-mm-dd` strings (pg type parser 1082) or restores shift a day.
+
 ## Database permissions
 - Supabase no longer exposes new tables automatically, and `*_api_grants.sql` closes every function by default. **Any new table or function in a later migration needs its own `grant`** (tables: select/insert/update to `authenticated`, never delete; functions: `grant execute ... to authenticated`, or `anon` only for things used before login). Add a check for it in `scripts/check-schema.mjs`.
 - Apply migrations to the real project with `npm run db:migrate` (needs `SUPABASE_DB_URL` in `.env.local`), or via the Supabase MCP connector. Add logins with `npm run add-person` in a real terminal (the PIN is typed hidden).

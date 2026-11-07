@@ -534,6 +534,48 @@ await check("opening stock needs no supplier; serial on/off can't change once st
   await expectBillError(OWNER, () => call(OWNER, "save_product", { id: okayaId, category: "Inverter battery", brand: "Okaya", model: "Jumbo Tubular", capacity: "150Ah", has_serial: false }), "cannot_change_serial");
 });
 
+// ------------------------------------------------------- Udhaar and Bajaj
+
+console.log("Checking udhaar payments and Bajaj Finance:");
+
+await check("receive_payment applies money to the oldest unpaid bills first", async () => {
+  const customer = (await db.query("select id from public.customers where phone = '9876500001'")).rows[0].id;
+  // Two udhaar bills for this customer: trolley 800 (paid 300) then trolley 800 (paid 0)
+  for (const paid of [300, 0]) {
+    await saveBill(STAFF, {
+      customer: { id: customer },
+      items: [{ product_id: ids.trolley, qty: 1, rate: 800 }],
+      payments: paid ? [{ mode: "cash", amount: paid }] : [],
+    });
+  }
+  const dues = async () => (await as(STAFF, "select dues::text as d from public.v_customer_dues where id = $1", [customer])).rows[0].d;
+  const before = Number(await dues());
+  const r = await call(STAFF, "receive_payment", { customer_id: customer, amount: "600", mode: "upi" });
+  if (r.applied.length !== 2 || Number(r.applied[0].amount) !== 500 || Number(r.applied[1].amount) !== 100) {
+    throw new Error(JSON.stringify(r));
+  }
+  if (Number(await dues()) !== before - 600) throw new Error(`dues ${before} → ${await dues()}`);
+  await expectBillError(STAFF, () => call(STAFF, "receive_payment", { customer_id: customer, amount: String(before), mode: "cash" }), "more_than_dues");
+  await expectBillError(STAFF, () => call(STAFF, "receive_payment", { customer_id: customer, amount: "10", mode: "barter" }), "bad_payment");
+  let blocked = false;
+  try {
+    await call(null, "receive_payment", { customer_id: customer, amount: "10", mode: "cash" }, "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("receive_payment is callable without logging in");
+});
+
+await check("settle_finance marks Bajaj money received, once", async () => {
+  const deal = (await db.query("select id from public.finance_deals where status = 'pending' limit 1")).rows[0].id;
+  await call(STAFF, "settle_finance", { finance_id: deal, received_amount: "9800" });
+  const d = (await db.query("select status, received_amount::text as amt, received_on from public.finance_deals where id = $1", [deal])).rows[0];
+  if (d.status !== "received" || d.amt !== "9800.00" || !d.received_on) throw new Error(JSON.stringify(d));
+  await expectBillError(STAFF, () => call(STAFF, "settle_finance", { finance_id: deal, received_amount: "1" }), "already_settled");
+  const a = (await as(STAFF, "select bajaj_pending_count from public.v_attention_counts")).rows[0];
+  if (a.bajaj_pending_count !== 0) throw new Error("still shown as pending");
+});
+
 await db.close();
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed.`);

@@ -11,10 +11,10 @@ import { RadioCard } from "@/components/ui/RadioCard";
 import { useToast } from "@/components/ui/Toast";
 import { getSettings, saveSettings } from "@/data/settings";
 import { formatBillNumber, isValidBillPrefix } from "@/lib/billNumber";
-import { formatDate, todayISO } from "@/lib/dates";
+import { getBackupStatus } from "@/data/dashboard";
+import { formatDate, formatTime, todayISO } from "@/lib/dates";
 import { formatPercent, parsePercent } from "@/lib/money";
 import { useAsync } from "@/lib/useAsync";
-import { BACKUP_READY_BY } from "../comingSoon";
 import { PeopleSection } from "./PeopleSection";
 import { fromDraft, toDraft, type DraftErrors, type SettingsDraft } from "./settingsDraft";
 
@@ -25,6 +25,7 @@ export function SettingsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const loaded = useAsync(getSettings);
+  const backup = useAsync(getBackupStatus);
   const [saved, setSaved] = useState<SettingsDraft | null>(null);
   const [draft, setDraft] = useState<SettingsDraft | null>(null);
   const [errors, setErrors] = useState<DraftErrors>({});
@@ -430,12 +431,24 @@ export function SettingsPage() {
           title={t("settings.backup.title")}
           description={t("settings.backup.description")}
         />
-        <CardBody className="flex flex-wrap items-center gap-3">
-          <Badge tone="amber">{t("comingSoon.beingBuilt")}</Badge>
-          <span className="inline-flex items-center gap-1.5 text-[15px] text-slate-700">
-            <CalendarClock className="size-4 text-brand-700" />
-            {t("comingSoon.readyBy", { date: formatDate(BACKUP_READY_BY, i18n.language) })}
-          </span>
+        <CardBody className="flex flex-col gap-2">
+          {backup.data?.state === "done" || backup.data?.state === "missing" ? (
+            <p className="flex items-center gap-2 text-[15px] font-medium text-slate-800">
+              <Badge tone={backup.data.state === "done" ? "green" : "red"}>
+                <CalendarClock className="size-3.5" />
+                {formatDate(new Date(backup.data.state === "done" ? backup.data.at : backup.data.lastAt), i18n.language)}
+              </Badge>
+              {backup.data.state === "done"
+                ? t("settings.backup.last", {
+                    when: formatTime(backup.data.at, i18n.language),
+                    rows: backup.data.rows,
+                  })
+                : null}
+            </p>
+          ) : (
+            <p className="text-[15px] text-slate-700">{t("settings.backup.none")}</p>
+          )}
+          <p className="text-sm text-slate-500">{t("settings.backup.howTo")}</p>
         </CardBody>
       </Card>
 

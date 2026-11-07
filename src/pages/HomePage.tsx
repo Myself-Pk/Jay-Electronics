@@ -20,7 +20,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { getAttentionItems, getBackupStatus, getTodaySummary } from "@/data/dashboard";
 import type { AttentionItem } from "@/data/types";
 import { cn } from "@/lib/cn";
-import { formatTime } from "@/lib/dates";
+import { formatDate, formatTime } from "@/lib/dates";
 import { formatRupees } from "@/lib/money";
 import { useAsync } from "@/lib/useAsync";
 
@@ -70,7 +70,7 @@ function attentionRow(item: AttentionItem, t: (key: string, options?: Record<str
       return {
         icon: IndianRupee,
         tone: "slate",
-        to: "/payments/new",
+        to: "/payments/new?tab=bajaj",
         text: t("home.attention.bajajPending", { amount: formatRupees(item.amountPaise) }),
       };
     case "old_stock":
@@ -207,7 +207,7 @@ export function HomePage() {
           ) : backup.data?.state === "missing" ? (
             <>
               <TriangleAlert className="size-5 text-red-600" />
-              <span className="text-red-700">{t("home.backupMissing")}</span>
+              <span className="text-red-700">{t("home.backupMissing", { date: formatDate(new Date(backup.data.lastAt), i18n.language) })}</span>
             </>
           ) : (
             <>

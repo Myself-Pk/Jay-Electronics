@@ -99,7 +99,18 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
   return toItems(data);
 }
 
-/** Daily backup is built in week 2. */
+/** The latest backup taken on the shop computer (scripts/backup.mjs records each one). */
 export async function getBackupStatus(): Promise<BackupStatus> {
-  return { state: "not_set_up" };
+  if (!supabase) return { state: "not_set_up" };
+  const { data, error } = await supabase
+    .from("backup_log")
+    .select("taken_at, rows")
+    .order("taken_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ taken_at: string; rows: number }>();
+  if (error) throw error;
+  if (!data) return { state: "not_set_up" };
+  return todayISO(new Date(data.taken_at)) === todayISO()
+    ? { state: "done", at: data.taken_at, rows: data.rows }
+    : { state: "missing", lastAt: data.taken_at };
 }

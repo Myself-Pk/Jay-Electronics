@@ -57,6 +57,22 @@ Restart `npm run dev`. The yellow "Preview mode" bar disappears and the login sc
 
 ---
 
+## 7. Switch on automatic backups (once, on the shop computer)
+
+The free Supabase plan has no backups of its own, so the shop computer keeps them:
+
+```bash
+npm run backup:schedule
+```
+
+This adds a hidden Windows task that checks every hour and takes **one backup a day**: after 7 PM, or as soon
+as the computer is switched on if the last backup is more than a day old. At most one day of data can be lost. Backups go to the `backups` folder in the project — or set
+`BACKUP_DIR=G:\My Drive\Jay Electronics Backups` in `.env.local` so Google Drive keeps a copy off the computer.
+Each backup folder also has `stock.csv`, `dues.csv` and `bills-this-month.csv`, which open in Excel.
+
+**To restore** (only if the database is lost): new Supabase project → steps 1–4 → `npm run restore -- "<backup folder>"`.
+Logins come back with temporary PINs, printed on screen.
+
 ### If something goes wrong
 - **"Could not connect to the database"** → check the password inside `SUPABASE_DB_URL`, and that it's the Session pooler string.
 - **Project paused** (after 7 days without use) → Supabase dashboard → **Restore project**. No data is lost.
