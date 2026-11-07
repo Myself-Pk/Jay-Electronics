@@ -161,7 +161,7 @@ function PersonDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             invalid={!!errors.name}
-            autoFocus
+            data-autofocus
           />
         </Field>
         <div>

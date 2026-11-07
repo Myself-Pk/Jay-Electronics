@@ -8,6 +8,19 @@ export function todayISO(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Monday of this week, as yyyy-mm-dd. */
+export function startOfWeekISO(now: Date = new Date()): string {
+  const d = new Date(now);
+  const daysSinceMonday = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - daysSinceMonday);
+  return todayISO(d);
+}
+
+/** First day of this month, as yyyy-mm-dd. */
+export function startOfMonthISO(now: Date = new Date()): string {
+  return todayISO(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
 /** Parse yyyy-mm-dd as a local date (not UTC). */
 export function parseISODate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);

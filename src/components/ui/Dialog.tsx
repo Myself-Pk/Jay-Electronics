@@ -10,7 +10,7 @@ interface DialogProps {
   description?: ReactNode;
   children?: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   /** Hide the ✕ button (used by confirmation popups, which need a clear yes/no). */
   hideClose?: boolean;
 }
@@ -23,7 +23,11 @@ export function Dialog({ open, onClose, title, description, children, footer, si
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // The browser focuses the first button (often ✕); jump to the field marked data-autofocus instead.
+      dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -36,7 +40,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
       }}
       className={cn(
         "m-auto w-[min(92vw,var(--dialog-width))] rounded-2xl bg-white p-0 text-slate-900 shadow-2xl",
-        size === "sm" ? "[--dialog-width:26rem]" : "[--dialog-width:34rem]",
+        size === "sm" ? "[--dialog-width:26rem]" : size === "lg" ? "[--dialog-width:46rem]" : "[--dialog-width:34rem]",
       )}
     >
       {open ? (

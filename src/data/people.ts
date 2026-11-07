@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { NotAvailableYetError } from "./errors";
-import { previewDelay, previewStore } from "./preview-store";
+import { persistPreview, previewDelay, previewStore } from "./preview-store";
 import type { LoginPerson, Person, Role } from "./types";
 
 interface PersonRow {
@@ -68,6 +68,7 @@ export async function addPerson(input: NewPerson): Promise<Person> {
       loginEmail: `${crypto.randomUUID()}@preview`,
     };
     previewStore.people.push(person);
+    persistPreview();
     return structuredClone(person);
   }
   // Creating a login needs a secure server function (Supabase Edge Function). Comes with the database setup.
@@ -79,6 +80,7 @@ export async function updatePerson(id: string, changes: Pick<Person, "name" | "r
     await previewDelay(300);
     const person = previewStore.people.find((p) => p.id === id);
     if (person) Object.assign(person, changes);
+    persistPreview();
     return;
   }
   const { error } = await supabase.from("people").update(changes).eq("id", id);

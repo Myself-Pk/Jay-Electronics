@@ -11,7 +11,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { person, switchPerson } = useSession();
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6 print:hidden">
       <button
         type="button"
         onClick={onOpenMenu}

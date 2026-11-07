@@ -61,7 +61,6 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               variant={options?.tone === "danger" ? "danger" : "primary"}
               size="lg"
               onClick={() => finish(true)}
-              autoFocus
             >
               {options?.confirmLabel ?? t("common.confirm")}
             </Button>

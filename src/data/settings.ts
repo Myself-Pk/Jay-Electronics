@@ -1,7 +1,7 @@
 import { financialYearOf } from "@/lib/billNumber";
 import { fromPaise, toPaise } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
-import { previewDelay, previewStore } from "./preview-store";
+import { persistPreview, previewDelay, previewStore } from "./preview-store";
 import type { ShopSettings } from "./types";
 
 interface SettingsRow {
@@ -85,6 +85,7 @@ export async function saveSettings(next: ShopSettings): Promise<void> {
   if (!supabase) {
     await previewDelay(300);
     previewStore.settings = structuredClone(next);
+    persistPreview();
     return;
   }
   const { error } = await supabase.from("shop_settings").update(settingsToRow(next)).eq("id", 1);

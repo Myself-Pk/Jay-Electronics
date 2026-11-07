@@ -10,6 +10,22 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 - Tests: Vitest (`npm test`). Money, bill-number and GST logic must have tests.
 - Preview mode: when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are missing, the data layer (`src/data/*`) serves in-memory sample data from `src/data/preview-store.ts`. Screens never talk to Supabase directly — always go through `src/data/*`.
 
+## Billing (how it fits together)
+- `supabase/migrations/*_billing.sql` → `save_bill(jsonb)` is the source of truth: it recalculates every amount, assigns the bill number, sells serial units, updates stock, customers, payments, scrap and Bajaj deals in one transaction, and raises `bill_error('<code>')` for anything the person can fix (shown via `billErrors.<code>` in i18n).
+- `src/data/preview-billing.ts` mirrors those rules for Preview mode. **If you change save_bill / cancel_bill, change the preview version too**, and add a check to `scripts/check-schema.mjs`.
+- `src/lib/billMath.ts` holds the shared arithmetic (card charges rounded to whole rupees, scrap by weight, totals). `src/pages/bills/billDraft.ts` is the New Bill screen's validation; both have tests.
+- The printed bill (`BillSheet.tsx`) is always English. Customers open bills at `/b/<share_token>` without logging in.
+
+## Products and stock
+- `save_product(jsonb)` (owner only) and `receive_stock(jsonb)` (anyone logged in) in `*_products_stock.sql`; Preview copies in `src/data/preview-stock.ts` — keep them in step.
+- Serial-numbered items get stock only by scanning serials (New stock arrived, or its "Opening stock" mode). Count-based items can also get opening stock when the product is added or imported.
+- The stock-list import (`src/pages/stock/stockImport.ts`) reads `stock-list-template.csv` saved from Excel as CSV.
+- `npm run dev:demo` runs the app on port 5174 in Preview mode (sample data) even when `.env.local` has the real keys.
+
+## Database permissions
+- Supabase no longer exposes new tables automatically, and `*_api_grants.sql` closes every function by default. **Any new table or function in a later migration needs its own `grant`** (tables: select/insert/update to `authenticated`, never delete; functions: `grant execute ... to authenticated`, or `anon` only for things used before login). Add a check for it in `scripts/check-schema.mjs`.
+- Apply migrations to the real project with `npm run db:migrate` (needs `SUPABASE_DB_URL` in `.env.local`), or via the Supabase MCP connector. Add logins with `npm run add-person` in a real terminal (the PIN is typed hidden).
+
 ## Commands
 - `npm run dev` — dev server on http://localhost:5173
 - `npm test` — unit tests
