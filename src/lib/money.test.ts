@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   amountInWords,
   basisPointsToInput,
+  compactRupees,
   formatPercent,
   formatRupees,
   fromPaise,
@@ -119,6 +120,16 @@ describe("roundToRupee", () => {
     expect(roundToRupee(1371049)).toEqual({ total: 1371000, roundOff: -49 });
     expect(roundToRupee(1371050)).toEqual({ total: 1371100, roundOff: 50 });
     expect(roundToRupee(1371000)).toEqual({ total: 1371000, roundOff: 0 });
+  });
+});
+
+describe("compactRupees (chart labels)", () => {
+  it("shortens in Indian style", () => {
+    expect(compactRupees(95_000)).toBe("₹950");
+    expect(compactRupees(1_352_500)).toBe("₹13.5k");
+    expect(compactRupees(12_000_000)).toBe("₹1.2L");
+    expect(compactRupees(2_450_000_000)).toBe("₹2.5Cr");
+    expect(compactRupees(250_000_000)).toBe("₹25L");
   });
 });
 

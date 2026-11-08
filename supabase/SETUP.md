@@ -73,6 +73,25 @@ Each backup folder also has `stock.csv`, `dues.csv` and `bills-this-month.csv`, 
 **To restore** (only if the database is lost): new Supabase project → steps 1–4 → `npm run restore -- "<backup folder>"`.
 Logins come back with temporary PINs, printed on screen.
 
+## 8. Put the app online and on the phone
+
+The app is hosted free on **Cloudflare Pages**, so it opens on any phone and customers' WhatsApp bill links work.
+
+```bash
+npm run deploy
+```
+
+This builds the app and uploads it (the first time, `npx wrangler login` opens Cloudflare in the browser).
+Only the publishable key goes online — the secret key and database password stay in `.env.local`.
+Put the address in `.env.local` as `VITE_PUBLIC_URL=https://….pages.dev` so bills shared from the shop computer link there.
+
+**On the Android phone:** open the address in Chrome → log in → tap **Install app** (top bar). It gets an icon and opens full screen.
+**As an APK:** the `android/` folder (not in git) has the APK made with PWABuilder from the live address, and
+`public/.well-known/assetlinks.json` proves the APK belongs to the site (so it opens without a browser bar).
+The APK only shows the live site, so app updates need just `npm run deploy` — no new APK.
+Keep the signing key and its passwords from PWABuilder safe (e.g. a copy on Google Drive) and **never put them on GitHub**:
+the same key is needed if the APK itself ever has to be rebuilt.
+
 ### If something goes wrong
 - **"Could not connect to the database"** → check the password inside `SUPABASE_DB_URL`, and that it's the Session pooler string.
 - **Project paused** (after 7 days without use) → Supabase dashboard → **Restore project**. No data is lost.

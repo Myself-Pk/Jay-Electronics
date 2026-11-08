@@ -9,12 +9,15 @@ import { BillPage } from "@/pages/bills/BillPage";
 import { BillsListPage } from "@/pages/bills/BillsListPage";
 import { NewBillPage } from "@/pages/bills/NewBillPage";
 import { SharedBillPage } from "@/pages/bills/SharedBillPage";
+import { CloseDayPage } from "@/pages/closeday/CloseDayPage";
 import { ComingSoonPage } from "@/pages/ComingSoonPage";
 import { CustomerPage } from "@/pages/customers/CustomerPage";
 import { CustomersPage } from "@/pages/customers/CustomersPage";
 import { PaymentReceivedPage } from "@/pages/customers/PaymentReceivedPage";
 import { HomePage } from "@/pages/HomePage";
+import { ReportsPage } from "@/pages/reports/ReportsPage";
 import { SettingsPage } from "@/pages/settings/SettingsPage";
+import { WarrantyPage } from "@/pages/warranty/WarrantyPage";
 import { NewStockPage } from "@/pages/stock/NewStockPage";
 import { PurchasesPage } from "@/pages/stock/PurchasesPage";
 import { StockPage } from "@/pages/stock/StockPage";
@@ -44,9 +47,9 @@ function AppRoutes() {
         <Route path="purchases" element={<PurchasesPage />} />
         <Route path="purchases/new" element={<NewStockPage />} />
         <Route path="payments/new" element={<PaymentReceivedPage />} />
-        <Route path="warranty" element={<ComingSoonPage feature="warranty" />} />
-        <Route path="reports" element={<ComingSoonPage feature="reports" />} />
-        <Route path="close-day" element={<ComingSoonPage feature="closeDay" />} />
+        <Route path="warranty" element={<WarrantyPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="close-day" element={<CloseDayPage />} />
         <Route path="search" element={<ComingSoonPage feature="search" />} />
         <Route
           path="settings"

@@ -1,14 +1,16 @@
-import { ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, Download, Menu } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Avatar } from "@/auth/LoginScreen";
 import { useSession } from "@/auth/SessionProvider";
 import { formatLongDate } from "@/lib/dates";
+import { useInstallApp } from "@/lib/install";
 import { BrandMark } from "./BrandMark";
 import { LanguageToggle } from "./LanguageToggle";
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { t, i18n } = useTranslation();
   const { person, switchPerson } = useSession();
+  const install = useInstallApp();
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6 print:hidden">
@@ -26,6 +28,17 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
       <p className="hidden text-[15px] font-medium text-slate-500 lg:block">{formatLongDate(new Date(), i18n.language)}</p>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {install ? (
+          <button
+            type="button"
+            onClick={() => void install()}
+            title={t("topbar.installHint")}
+            className="flex h-11 items-center gap-2 rounded-xl bg-brand-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-800"
+          >
+            <Download className="size-5" />
+            <span className="hidden sm:inline">{t("topbar.install")}</span>
+          </button>
+        ) : null}
         <LanguageToggle />
         {person ? (
           <button

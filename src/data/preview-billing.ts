@@ -262,10 +262,11 @@ export function previewCancelBill(id: string, reason: string, role: Role) {
   persistPreview();
 }
 
-export function previewMarkRegistered(unitId: string) {
+export function previewMarkRegistered(unitId: string, reference = "") {
   const unit = previewStore.units.find((u) => u.id === unitId);
   if (!unit || unit.status !== "sold") throw new BillError("serial_not_available", { serial: "" });
   unit.registeredAt = new Date().toISOString();
+  unit.regRef = reference.trim();
   for (const bill of previewStore.bills) {
     for (const item of bill.items) if (item.unitId === unitId) item.registeredAt = unit.registeredAt;
   }

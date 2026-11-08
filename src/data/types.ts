@@ -55,6 +55,25 @@ export type AttentionItem =
   | { kind: "bajaj_pending"; count: number; amountPaise: Paise }
   | { kind: "old_stock"; count: number };
 
+export interface DashboardSummary {
+  week: Paise;
+  weekBills: number;
+  /** Same days of last week, for a fair comparison. */
+  prevWeek: Paise;
+  month: Paise;
+  monthBills: number;
+  /** Same days of last month. */
+  prevMonth: Paise;
+  udhaar: Paise;
+  udhaarCustomers: number;
+  /** Last 7 days, oldest first. */
+  days: { date: string; total: Paise; bills: number }[];
+  /** Best sellers this month (no services). */
+  top: { product: string; qty: number; amount: Paise }[];
+  /** Owner only; null for staff. */
+  profit: Paise | null;
+}
+
 export type BackupStatus =
   | { state: "not_set_up" }
   | { state: "missing"; lastAt: string }

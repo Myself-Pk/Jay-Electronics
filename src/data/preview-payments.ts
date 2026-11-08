@@ -57,7 +57,7 @@ export function previewOwnedUnits(customerId: string) {
     .filter((u) => u.customerId === customerId && u.status === "sold")
     .map((u) => {
       const product = db.products.find((p) => p.id === u.productId);
-      const soldOn = db.bills.find((b) => b.id === u.billId)?.date ?? null;
+      const soldOn = u.soldOn ?? db.bills.find((b) => b.id === u.billId)?.date ?? null;
       return {
         unitId: u.id,
         serial: u.serial,

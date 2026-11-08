@@ -78,7 +78,7 @@ export function NewBillPage() {
   const settings = settingsQ.data;
   if (!catalog || !settings) {
     return (
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-4">
           <div className="h-10 w-48 animate-pulse rounded-xl bg-slate-200" />
           <div className="h-40 animate-pulse rounded-2xl bg-white" />
@@ -257,7 +257,7 @@ export function NewBillPage() {
         </p>
       </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-5">
           <CustomerSection
             customer={draft.customer}

@@ -80,6 +80,16 @@ export function formatRupees(p: Paise, opts: { paise?: "auto" | "always" | "neve
   return wholeRupees.format(roundToRupee(p).total / 100);
 }
 
+/** Short Indian-style amount for chart labels: ₹950, ₹13.5k, ₹1.2L, ₹2.4Cr */
+export function compactRupees(p: Paise): string {
+  const r = Math.round(p / 100);
+  const short = (n: number) => (n >= 100 ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, ""));
+  if (r >= 10_000_000) return `₹${short(r / 10_000_000)}Cr`;
+  if (r >= 100_000) return `₹${short(r / 100_000)}L`;
+  if (r >= 1000) return `₹${short(r / 1000)}k`;
+  return `₹${r}`;
+}
+
 /** Text to put in an amount input box: 10550 → "105.50", 10500 → "105". */
 export function paiseToInput(p: Paise): string {
   return fromPaise(p).replace(/\.00$/, "");

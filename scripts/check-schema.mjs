@@ -576,6 +576,133 @@ await check("settle_finance marks Bajaj money received, once", async () => {
   if (a.bajaj_pending_count !== 0) throw new Error("still shown as pending");
 });
 
+// ------------------------------------------------------- Home dashboard
+
+console.log("Checking the Home dashboard summary:");
+
+await check("dashboard_summary adds up the week and month, and shows profit to the owner only", async () => {
+  const expected = (await db.query(
+    "select coalesce(sum(total), 0)::numeric as t, count(*)::int as n from public.bills where doc_type = 'bill' and status = 'saved'",
+  )).rows[0];
+  const staff = (await as(STAFF, "select public.dashboard_summary() as s")).rows[0].s;
+  const owner = (await as(OWNER, "select public.dashboard_summary() as s")).rows[0].s;
+  // Every test bill is dated today, so the week and the month both hold all of them.
+  if (Number(staff.week) !== Number(expected.t) || Number(staff.month) !== Number(expected.t) || staff.month_bills !== expected.n) {
+    throw new Error(`expected ${expected.t} in ${expected.n} bills, got ${JSON.stringify({ week: staff.week, month: staff.month, bills: staff.month_bills })}`);
+  }
+  if (staff.days.length !== 7 || Number(staff.days[6].total) !== Number(expected.t)) throw new Error(JSON.stringify(staff.days));
+  if (staff.top.length === 0 || staff.top.some((t) => /Delivery/.test(t.product))) throw new Error(JSON.stringify(staff.top));
+  if (staff.profit !== null) throw new Error("staff can see profit");
+  if (typeof owner.profit !== "number") throw new Error(`owner profit: ${owner.profit}`);
+  let blocked = false;
+  try {
+    await as(null, "select public.dashboard_summary()", [], "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("dashboard_summary is callable without logging in");
+});
+
+// ------------------------------------------------------- Close Day
+
+console.log("Checking Close Day and expenses:");
+
+await check("close_day: works out the cash in the drawer, can be redone, and needs a login", async () => {
+  // Staff add a cash expense; they can't cancel it, the owner can.
+  const exp = (await as(STAFF, "insert into public.expenses (category, amount, mode) values ('Tea & snacks', 120, 'cash') returning id")).rows[0].id;
+  const staffCancel = await as(STAFF, "update public.expenses set status = 'cancelled' where id = $1 returning id", [exp]);
+  if (staffCancel.rows.length !== 0) throw new Error("staff cancelled an expense");
+  const cashIn = Number((await db.query(
+    "select coalesce(sum(amount), 0) as s from public.payments where direction = 'in' and mode = 'cash' and status = 'saved' and paid_on = public.today_ist()",
+  )).rows[0].s);
+  const expected = 1000 + cashIn - 120;
+  const r = await call(STAFF, "close_day", { opening_cash: "1000", counted_cash: String(expected - 50), summary: { sales: "1" } });
+  if (Number(r.expected_cash) !== expected || Number(r.difference) !== -50) throw new Error(JSON.stringify(r));
+  // Owner cancels the expense and closes again: the expected cash goes up by 120 and the row is replaced.
+  await as(OWNER, "update public.expenses set status = 'cancelled' where id = $1", [exp]);
+  const again = await call(OWNER, "close_day", { opening_cash: "1000", counted_cash: String(expected + 120) });
+  if (Number(again.expected_cash) !== expected + 120 || Number(again.difference) !== 0) throw new Error(JSON.stringify(again));
+  const rows = (await as(STAFF, "select summary from public.day_closes")).rows;
+  if (rows.length !== 1 || Number(rows[0].summary.opening_cash) !== 1000) throw new Error(JSON.stringify(rows));
+  await expectBillError(STAFF, () => call(STAFF, "close_day", { day: "2999-01-01" }), "future_day");
+  await expectBillError(STAFF, () => call(STAFF, "close_day", { opening_cash: "-5" }), "bad_amount");
+  await expectBillError(STAFF, () => call(STAFF, "close_day", { opening_cash: "abc" }), "bad_amount");
+  let blocked = false;
+  try {
+    await call(null, "close_day", {}, "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("close_day is callable without logging in");
+});
+
+// ------------------------------------------------------- Warranty Check
+
+console.log("Checking Warranty Check:");
+
+await check("add_old_sale: a battery from the paper register, with its customer; stock untouched", async () => {
+  const stockBefore = await stockOf(ids.battery);
+  const r = await call(STAFF, "add_old_sale", { product_id: ids.battery, serial_no: " OLD-123 ", sold_on: "2024-05-01", phone: "+91 98765 12345", name: "Ramesh Old" });
+  const u = (await db.query("select serial_no, status, source, sold_on::text as d, warranty_start::text as w, customer_id from public.units where id = $1", [r.unit_id])).rows[0];
+  if (u.serial_no !== "OLD-123" || u.status !== "sold" || u.source !== "old_register" || u.d !== "2024-05-01" || u.w !== "2024-05-01" || u.customer_id !== r.customer_id) {
+    throw new Error(JSON.stringify(u));
+  }
+  const c = (await db.query("select name, phone from public.customers where id = $1", [r.customer_id])).rows[0];
+  if (c.name !== "Ramesh Old" || c.phone !== "9876512345") throw new Error(JSON.stringify(c));
+  if ((await stockOf(ids.battery)) !== stockBefore) throw new Error("stock changed");
+  const sale = (extra) => ({ product_id: ids.battery, serial_no: "OLD-999", sold_on: "2024-05-01", phone: "9876512345", ...extra });
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ serial_no: "old-123" })), "serial_exists");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ serial_no: "AMR-001" })), "serial_exists");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ sold_on: "2999-01-01" })), "bad_sale_date");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ sold_on: "not a date" })), "bad_sale_date");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ product_id: ids.trolley })), "no_serial_product");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ product_id: "nope" })), "product_not_found");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ phone: "" })), "customer_required");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ phone: "12345" })), "bad_phone");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ phone: "9000000001" })), "customer_name_required");
+  let blocked = false;
+  try {
+    await call(null, "add_old_sale", sale({}), "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("add_old_sale is callable without logging in");
+});
+
+await check("warranty_search finds batteries by serial, mobile number and bill number", async () => {
+  const search = async (q) => (await as(STAFF, "select public.warranty_search($1) as r", [q])).rows[0].r;
+  const byPhone = await search("98765 12345");
+  if (!byPhone.some((u) => u.serial_no === "OLD-123" && u.warranty_start === "2024-05-01" && u.product)) throw new Error(JSON.stringify(byPhone));
+  if (!(await search("old-12")).some((u) => u.serial_no === "OLD-123")) throw new Error("partial serial not found");
+  if ((await search("ol")).length !== 0) throw new Error("2 letters should not search");
+  const sold = (await db.query(
+    `select b.number, b.seq, u.serial_no from public.units u join public.bill_items bi on bi.id = u.bill_item_id
+       join public.bills b on b.id = bi.bill_id where u.status = 'sold' limit 1`,
+  )).rows[0];
+  if (!(await search(sold.number)).some((u) => u.serial_no === sold.serial_no && u.bill_number === sold.number)) throw new Error("bill number not found");
+  if (!(await search(String(sold.seq))).some((u) => u.serial_no === sold.serial_no)) throw new Error("short bill number not found");
+  let blocked = false;
+  try {
+    await as(null, "select public.warranty_search('OLD-123')", [], "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("warranty_search is callable without logging in");
+  blocked = false;
+  try {
+    await as(null, "select * from public.v_warranty_units", [], "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("v_warranty_units is readable without logging in");
+  // Home's count and the to-do list agree, and both leave out old paper-register sales.
+  await db.exec("update public.brands set warranty_registration_required = true where id = (select brand_id from public.products where model = 'Tall Tubular')");
+  const pending = (await as(STAFF, "select count(*)::int as n from public.v_warranty_units where status = 'sold' and needs_registration and warranty_registered_at is null and source <> 'old_register'")).rows[0].n;
+  const home = (await as(STAFF, "select warranty_pending as n from public.v_attention_counts")).rows[0].n;
+  const oldOne = (await as(STAFF, "select needs_registration as r from public.v_warranty_units where serial_no = 'OLD-123'")).rows[0].r;
+  if (pending !== home || !oldOne) throw new Error(`to-do ${pending}, Home ${home}, old sale needs registration: ${oldOne}`);
+});
+
 await db.close();
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed.`);

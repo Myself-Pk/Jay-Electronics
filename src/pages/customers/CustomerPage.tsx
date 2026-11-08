@@ -95,7 +95,7 @@ export function CustomerPage() {
         ) : null}
       </Card>
 
-      <div className="grid items-start gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader icon={Receipt} title={t("customers.billsTitle")} />
           {bills.length === 0 ? (

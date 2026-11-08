@@ -36,7 +36,11 @@ export interface PreviewUnit {
   productId: string;
   serial: string;
   status: "in_stock" | "sold" | "damaged";
-  source: "purchase" | "added_at_billing";
+  source: "purchase" | "added_at_billing" | "old_register";
+  /** Sale date for old sales from the paper register (bills give it for the rest). */
+  soldOn?: string | null;
+  /** Reference number from the brand's warranty registration. */
+  regRef?: string;
   arrivedOn: string | null;
   customerId: string | null;
   billId: string | null;
@@ -62,6 +66,29 @@ interface PreviewStore {
   suppliers: Supplier[];
   /** Newest first. */
   purchases: PurchaseSummary[];
+  /** Added later; older saved copies may not have them yet. */
+  expenses?: PreviewExpense[];
+  dayCloses?: Record<string, PreviewDayClose>;
+}
+
+export interface PreviewExpense {
+  id: string;
+  date: string;
+  category: string;
+  amount: number;
+  mode: "cash" | "upi" | "bank";
+  note: string;
+  status: "saved" | "cancelled";
+  by: string;
+}
+
+export interface PreviewDayClose {
+  openingCash: number;
+  countedCash: number | null;
+  expectedCash: number;
+  note: string;
+  by: string;
+  closedAt: string;
 }
 
 const rupees = (r: number) => r * 100;

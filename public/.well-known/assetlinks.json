@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "in.jayelectronics.app",
+        "sha256_cert_fingerprints": ["36:3C:3D:64:C5:3E:A3:6F:7E:2D:00:4B:F4:0B:B5:86:14:39:8B:EC:47:F4:66:CB:D1:53:EF:26:D0:5B:79:F5"]
+      }
+    }]

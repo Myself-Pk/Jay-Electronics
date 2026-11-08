@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, warrantyStatus } from "./warranty";
+import { addMonths, isOverdueRegistration, timeLeft, warrantyStatus } from "./warranty";
+
+describe("timeLeft", () => {
+  it("counts years and months, then days", () => {
+    expect(timeLeft("2026-11-08", "2030-11-07")).toEqual({ years: 3, months: 11, days: 30 });
+    expect(timeLeft("2026-11-08", "2028-03-08")).toEqual({ years: 1, months: 4, days: 0 });
+    expect(timeLeft("2026-11-08", "2026-11-28")).toEqual({ years: 0, months: 0, days: 20 });
+    expect(timeLeft("2026-11-08", "2026-11-08")).toEqual({ years: 0, months: 0, days: 0 });
+    expect(timeLeft("2026-11-08", "2026-11-07")).toBeNull();
+  });
+
+  it("marks registrations from earlier days as overdue", () => {
+    expect(isOverdueRegistration("2026-11-07", "2026-11-08")).toBe(true);
+    expect(isOverdueRegistration("2026-11-08", "2026-11-08")).toBe(false);
+    expect(isOverdueRegistration(null, "2026-11-08")).toBe(false);
+  });
+});
 
 describe("addMonths", () => {
   it("adds calendar months, clamping to the end of short months", () => {

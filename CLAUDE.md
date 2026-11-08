@@ -26,6 +26,15 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 - `receive_payment(jsonb)` applies a customer's money to their oldest unpaid bills first; `settle_finance(jsonb)` marks Bajaj money received; `v_customer_dues` lists dues. Preview copies in `src/data/preview-payments.ts`.
 - `npm run backup` (scripts/backup.mjs) saves a dated folder (full JSON + Excel-readable CSVs) to `BACKUP_DIR` or `backups/`, logs it in `backup_log` (shown on Home). `npm run backup:schedule` registers an hourly hidden Windows task (`--if-due`: one backup a day after 7 PM, or immediately if the last is >24 h old). `npm run restore -- <folder>` puts a backup into an empty project (logins get temporary PINs). Dates must stay as `yyyy-mm-dd` strings (pg type parser 1082) or restores shift a day.
 
+## Home, Reports and Close Day
+- Home's week/month numbers come from `dashboard_summary()` (`*_dashboard.sql`); Preview copy in `src/data/dashboard.ts`.
+- Reports and Close Day add up plain rows with `buildReport()` in `src/lib/report.ts` (tested) — the same function for live data and Preview (`src/data/reports.ts`), so they always agree. Long ranges are read in pages of 1,000 rows.
+- `close_day(jsonb)` (`*_close_day.sql`) works out the expected cash itself (start cash + cash in − cash out − cash expenses) and can be re-run for the same day. Expenses are inserted directly (RLS: anyone adds, owner cancels); categories are keys (`tea`, `transport`…) translated via `closeDay.cats.*`.
+
+## Warranty Check
+- `v_warranty_units` (security_invoker view) + `warranty_search(text)` (serial part ≥3 chars, 10-digit mobile, bill number or its sequence) + `add_old_sale(jsonb)` (paper-register sales: unit `status='sold'`, `source='old_register'`, no stock change) in `*_warranty.sql`; Preview copies in `src/data/warranty.ts`.
+- Registration to-do = sold units of brands with `warranty_registration_required`, not yet registered, **excluding old_register** (same rule in `v_attention_counts`). Pending from an earlier day shows red. Warranty maths in `src/lib/warranty.ts` (tested).
+
 ## Database permissions
 - Supabase no longer exposes new tables automatically, and `*_api_grants.sql` closes every function by default. **Any new table or function in a later migration needs its own `grant`** (tables: select/insert/update to `authenticated`, never delete; functions: `grant execute ... to authenticated`, or `anon` only for things used before login). Add a check for it in `scripts/check-schema.mjs`.
 - Apply migrations to the real project with `npm run db:migrate` (needs `SUPABASE_DB_URL` in `.env.local`), or via the Supabase MCP connector. Add logins with `npm run add-person` in a real terminal (the PIN is typed hidden).

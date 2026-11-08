@@ -16,6 +16,25 @@ export type WarrantyState =
   | { state: "expired"; endedOn: string }
   | { state: "none" };
 
+/** Time from today until a date (inclusive of whole months first), or null if it has passed. */
+export function timeLeft(today: string, until: string): { years: number; months: number; days: number } | null {
+  if (until < today) return null;
+  let months = 0;
+  while (addMonths(today, months + 1) <= until) months++;
+  const from = addMonths(today, months);
+  const utc = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  const days = Math.round((utc(until) - utc(from)) / 86_400_000);
+  return { years: Math.floor(months / 12), months: months % 12, days };
+}
+
+/** Pending registration from before today: the plan says these turn red. */
+export function isOverdueRegistration(soldOn: string | null, today: string): boolean {
+  return soldOn !== null && soldOn < today;
+}
+
 export function warrantyStatus(start: string | null, freeMonths: number, prorataMonths: number, today: string): WarrantyState {
   if (!start || freeMonths + prorataMonths <= 0) return { state: "none" };
   const freeUntil = addMonths(start, freeMonths);

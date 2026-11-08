@@ -9,3 +9,11 @@ dist
 Thumbs.db
 coverage
 backups/
+
+# APK and its signing key (made with PWABuilder) - keep private, back up on Google Drive
+android/
+*.keystore
+*.jks
+
+# Cloudflare deploy tool's local files
+.wrangler/

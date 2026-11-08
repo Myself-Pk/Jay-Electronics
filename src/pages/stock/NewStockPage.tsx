@@ -238,7 +238,7 @@ export function NewStockPage() {
         {t("newStock.title")}
       </h1>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="flex min-w-0 flex-col gap-5">
           <Card>
             <CardBody className="flex flex-col gap-4">

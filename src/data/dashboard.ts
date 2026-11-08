@@ -1,9 +1,18 @@
-import { todayISO } from "@/lib/dates";
+import { startOfMonthISO, startOfWeekISO, todayISO } from "@/lib/dates";
 import { toPaise } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
 import { previewDb } from "./preview-billing";
 import { previewDelay, previewStockOf } from "./preview-store";
-import type { AttentionItem, BackupStatus, PaymentMode, TodaySummary } from "./types";
+import {
+  canSeeOwnerData,
+  productLabel,
+  type AttentionItem,
+  type BackupStatus,
+  type DashboardSummary,
+  type PaymentMode,
+  type Role,
+  type TodaySummary,
+} from "./types";
 
 const MODES_SHOWN: PaymentMode[] = ["cash", "upi", "debit_card", "credit_card", "bajaj"];
 
@@ -75,7 +84,7 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
   if (!supabase) {
     await previewDelay();
     const db = previewDb();
-    const sold = db.units.filter((u) => u.status === "sold" && !u.registeredAt);
+    const sold = db.units.filter((u) => u.status === "sold" && !u.registeredAt && u.source !== "old_register");
     const pendingBrands = sold
       .map((u) => db.products.find((p) => p.id === u.productId))
       .filter((p) => p?.needsRegistration)
@@ -97,6 +106,90 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
   const { data, error } = await supabase.from("v_attention_counts").select("*").single<AttentionRow>();
   if (error) throw error;
   return toItems(data);
+}
+
+/** Week / month sales, udhaar, last 7 days and top sellers for the Home screen. */
+export async function getDashboardSummary(role: Role | undefined): Promise<DashboardSummary> {
+  if (!supabase) {
+    await previewDelay();
+    return previewSummary(canSeeOwnerData(role));
+  }
+  const { data, error } = await supabase.rpc("dashboard_summary");
+  if (error) throw error;
+  const s = data as {
+    week: number; week_bills: number; prev_week: number; month: number; month_bills: number; prev_month: number;
+    udhaar: number; udhaar_customers: number; profit: number | null;
+    days: { date: string; total: number; bills: number }[];
+    top: { product: string; qty: number; amount: number }[];
+  };
+  return {
+    week: toPaise(s.week),
+    weekBills: s.week_bills,
+    prevWeek: toPaise(s.prev_week),
+    month: toPaise(s.month),
+    monthBills: s.month_bills,
+    prevMonth: toPaise(s.prev_month),
+    udhaar: toPaise(s.udhaar),
+    udhaarCustomers: s.udhaar_customers,
+    days: s.days.map((d) => ({ date: d.date, total: toPaise(d.total), bills: d.bills })),
+    top: s.top.map((t) => ({ product: t.product, qty: Number(t.qty), amount: toPaise(t.amount) })),
+    profit: s.profit === null ? null : toPaise(s.profit),
+  };
+}
+
+/** Same sums as dashboard_summary(), from the Preview sample shop. */
+function previewSummary(isOwner: boolean): DashboardSummary {
+  const db = previewDb();
+  const bills = db.bills.filter((b) => b.status === "saved");
+  const now = new Date();
+  const today = todayISO(now);
+  const shift = (iso: string, days: number) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return todayISO(new Date(y, m - 1, d + days));
+  };
+  const weekStart = startOfWeekISO(now);
+  const monthStart = startOfMonthISO(now);
+  const lastMonth = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const last = new Date(y, m - 1, 0).getDate(); // days in previous month
+    return todayISO(new Date(y, m - 2, Math.min(d, last)));
+  };
+  const sum = (from: string, to: string) => bills.filter((b) => b.date >= from && b.date <= to);
+  const total = (list: typeof bills) => list.reduce((s, b) => s + b.total, 0);
+  const month = sum(monthStart, today);
+  const top = new Map<string, { qty: number; amount: number }>();
+  for (const b of month) {
+    for (const item of b.items) {
+      const product = db.products.find((p) => productLabel(p) === item.description);
+      if (product?.isService) continue;
+      const t = top.get(item.description) ?? { qty: 0, amount: 0 };
+      top.set(item.description, { qty: t.qty + item.qty, amount: t.amount + item.amount });
+    }
+  }
+  const profit = month
+    .flatMap((b) => b.items)
+    .reduce((s, item) => {
+      const product = db.products.find((p) => productLabel(p) === item.description);
+      return s + item.amount - item.qty * (product ? (db.costs[product.id] ?? 0) : 0);
+    }, 0);
+  const unpaid = bills.filter((b) => b.balance > 0);
+  return {
+    week: total(sum(weekStart, today)),
+    weekBills: sum(weekStart, today).length,
+    prevWeek: total(sum(shift(weekStart, -7), shift(today, -7))),
+    month: total(month),
+    monthBills: month.length,
+    prevMonth: total(sum(lastMonth(monthStart), lastMonth(today))),
+    udhaar: unpaid.reduce((s, b) => s + b.balance, 0),
+    udhaarCustomers: new Set(unpaid.map((b) => b.customerPhone || b.customerName)).size,
+    days: Array.from({ length: 7 }, (_, i) => {
+      const date = shift(today, i - 6);
+      const list = bills.filter((b) => b.date === date);
+      return { date, total: total(list), bills: list.length };
+    }),
+    top: [...top].map(([product, v]) => ({ product, ...v })).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5),
+    profit: isOwner ? profit : null,
+  };
 }
 
 /** The latest backup taken on the shop computer (scripts/backup.mjs records each one). */

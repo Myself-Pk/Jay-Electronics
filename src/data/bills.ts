@@ -279,7 +279,7 @@ export async function cancelBill(id: string, reason: string, role: Role): Promis
 export async function markWarrantyRegistered(unitId: string, reference = ""): Promise<void> {
   if (!supabase) {
     await previewDelay(200);
-    previewMarkRegistered(unitId);
+    previewMarkRegistered(unitId, reference);
     return;
   }
   const { error } = await supabase.rpc("mark_warranty_registered", { p_unit_id: unitId, p_reference: reference });
