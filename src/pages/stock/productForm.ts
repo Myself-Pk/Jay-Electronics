@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 /** The Add / Edit product form: what's typed (text) ↔ what gets saved, with friendly checks. */
 import type { CatalogProduct, Category, ProductInput } from "@/data/types";
 import { basisPointsToInput, paiseToInput, parsePercent, parseRupees, type Paise } from "@/lib/money";
@@ -38,7 +39,7 @@ export function emptyProductDraft(category?: Category): ProductDraft {
     dealer: "",
     minPrice: "",
     purchase: "",
-    hasSerial: category?.hasSerialByDefault ?? true,
+    hasSerial: FEATURES.serialNumbers ? (category?.hasSerialByDefault ?? true) : false,
     warrantyFree: "",
     warrantyProrata: "",
     lowStock: "",
@@ -138,8 +139,9 @@ export function draftToProductInput(d: ProductDraft, categories: Category[], isO
       dealerPrice: dealer ?? null,
       minPrice: minPrice ?? null,
       hasSerial,
-      warrantyFreeMonths: hasSerial ? (free ?? 0) : 0,
-      warrantyProrataMonths: hasSerial ? (prorata ?? 0) : 0,
+      // Warranty belongs to the product, serial numbers or not (services have none).
+      warrantyFreeMonths: category!.isService ? 0 : (free ?? 0),
+      warrantyProrataMonths: category!.isService ? 0 : (prorata ?? 0),
       lowStockLevel: low ?? 0,
       hsn: d.hsn.trim(),
       gstRate: gst,

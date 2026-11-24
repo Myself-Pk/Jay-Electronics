@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { listInStockUnits } from "@/data/catalog";
 import { asBillError } from "@/data/errors";
 import { getPurchasePrice, saveProduct } from "@/data/products";
+import { FEATURES } from "@/lib/features";
 import { productLabel, type CatalogProduct, type Category, type Role, type StockUnit } from "@/data/types";
 import { warrantyText } from "@/lib/billMath";
 import { formatDate } from "@/lib/dates";
@@ -49,7 +50,7 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
       return;
     }
     setDraft(productToDraft(product, null));
-    if (isOwner) {
+    if (isOwner && FEATURES.purchasePrices) {
       getPurchasePrice(product.id).then(
         (price) => setDraft((d) => ({ ...productToDraft(product, price), ...pickTyped(d, product) })),
         () => undefined,
@@ -67,7 +68,7 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
   const category = categories.find((c) => c.id === draft.categoryId);
 
   const save = async () => {
-    const result = draftToProductInput(draft, categories, isOwner);
+    const result = draftToProductInput(draft, categories, isOwner && FEATURES.purchasePrices);
     if (!result.ok) {
       setErrors(result.errors);
       return;
@@ -132,7 +133,7 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
                   <dd className="font-semibold">{formatRupees(product.mrp)}</dd>
                 </div>
               ) : null}
-              {product.hasSerial ? (
+              {product.warrantyFreeMonths + product.warrantyProrataMonths > 0 ? (
                 <div>
                   <dt className="text-sm text-slate-500">{t("stock.warranty")}</dt>
                   <dd className="font-semibold">{warrantyText(product.warrantyFreeMonths, product.warrantyProrataMonths) || "—"}</dd>
@@ -174,7 +175,7 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
               value={draft.categoryId}
               onChange={(e) => {
                 const c = categories.find((x) => x.id === e.target.value);
-                setDraft((d) => ({ ...d, categoryId: e.target.value, hasSerial: product ? d.hasSerial : (c?.hasSerialByDefault ?? d.hasSerial) }));
+                setDraft((d) => ({ ...d, categoryId: e.target.value, hasSerial: product || !FEATURES.serialNumbers ? d.hasSerial : (c?.hasSerialByDefault ?? d.hasSerial) }));
               }}
             >
               {categories.map((c) => (
@@ -215,18 +216,20 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
             <Field label={t("stock.form.minPrice")} htmlFor="pf-min" optional={t("common.optional")} error={err("minPrice")}>
               <Input id="pf-min" inputMode="decimal" prefix="₹" value={draft.minPrice} onChange={(e) => set("minPrice", e.target.value)} invalid={!!errors.minPrice} />
             </Field>
-            <Field label={t("stock.form.purchase")} htmlFor="pf-purchase" hint={t("stock.form.purchaseHint")} error={err("purchase")} className="sm:col-span-2">
-              <Input id="pf-purchase" inputMode="decimal" prefix="₹" value={draft.purchase} onChange={(e) => set("purchase", e.target.value)} invalid={!!errors.purchase} className="sm:w-56" />
-            </Field>
+            {FEATURES.purchasePrices ? (
+              <Field label={t("stock.form.purchase")} htmlFor="pf-purchase" hint={t("stock.form.purchaseHint")} error={err("purchase")} className="sm:col-span-2">
+                <Input id="pf-purchase" inputMode="decimal" prefix="₹" value={draft.purchase} onChange={(e) => set("purchase", e.target.value)} invalid={!!errors.purchase} className="sm:w-56" />
+              </Field>
+            ) : null}
           </div>
         </div>
 
-        {category?.isService ? null : (
+        {category?.isService || !FEATURES.serialNumbers ? null : (
           <Switch checked={draft.hasSerial} onChange={(v) => set("hasSerial", v)} label={t("stock.form.hasSerial")} description={t("stock.form.hasSerialHint")} />
         )}
 
         <div className="grid gap-4 sm:grid-cols-3">
-          {draft.hasSerial && !category?.isService ? (
+          {!category?.isService ? (
             <>
               <Field label={t("stock.form.warrantyFree")} htmlFor="pf-free" error={err("warrantyFree")}>
                 <Input id="pf-free" inputMode="numeric" value={draft.warrantyFree} onChange={(e) => set("warrantyFree", e.target.value)} invalid={!!errors.warrantyFree} />

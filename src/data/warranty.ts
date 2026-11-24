@@ -173,7 +173,7 @@ function previewAddOldSale(input: OldSaleInput): string {
   const db = previewDb();
   const product = db.products.find((p) => p.id === input.productId);
   if (!product) throw new BillError("product_not_found");
-  if (product.isService || !product.hasSerial) throw new BillError("no_serial_product", { product: product.model });
+  if (product.isService) throw new BillError("no_serial_product", { product: product.model });
   const serial = input.serial.trim();
   if (!serial) throw new BillError("serial_required", { product: product.model });
   const existing = db.units.find((u) => u.serial.toUpperCase() === serial.toUpperCase());

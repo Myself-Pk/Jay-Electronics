@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 import { CircleAlert, PackagePlus, RotateCcw, ScanBarcode, X } from "lucide-react";
@@ -119,6 +120,8 @@ function StockLineRow({
             <Input id={`qty-${index}`} inputMode="numeric" value={line.qtyText} onChange={(e) => onChange({ ...line, qtyText: e.target.value.replace(/\D/g, "") })} invalid={qty <= 0} />
           </div>
         ) : null}
+        {FEATURES.purchasePrices ? (
+        <>
         <div className="w-36">
           <label className={label} htmlFor={`rate-${index}`}>{t("newStock.rate")}</label>
           <Input id={`rate-${index}`} inputMode="decimal" prefix="₹" value={line.rateText} onChange={(e) => onChange({ ...line, rateText: e.target.value })} invalid={kind === "purchase" && lineTotal === null} />
@@ -131,8 +134,10 @@ function StockLineRow({
           <span className="block text-xs text-slate-500">{t("newStock.lineTotal")}</span>
           <span className="text-lg font-bold text-slate-900 tabular-nums">{lineTotal !== null ? formatRupees(lineTotal) : "—"}</span>
         </p>
+        </>
+        ) : null}
       </div>
-      {kind === "purchase" ? <p className="mt-1 text-xs text-slate-500">{t("newStock.rateHint")}</p> : null}
+      {kind === "purchase" && FEATURES.purchasePrices ? <p className="mt-1 text-xs text-slate-500">{t("newStock.rateHint")}</p> : null}
     </li>
   );
 }
@@ -157,7 +162,7 @@ export function NewStockPage() {
     }
   });
 
-  const ev = evaluateStock(draft, today);
+  const ev = evaluateStock(draft, today, FEATURES.purchasePrices);
   const stockable = (catalog.data ?? []).filter((p) => !p.isService);
 
   const addProduct = (product: CatalogProduct) => {
@@ -312,10 +317,12 @@ export function NewStockPage() {
             <div className="flex items-baseline justify-between">
               <span className="text-[15px] text-slate-600">{t("newStock.pieces", { count: ev.pieces })}</span>
             </div>
-            <div className="mt-3 flex items-baseline justify-between border-t border-slate-200 pt-3">
-              <span className="text-base font-bold text-slate-900">{t("newStock.billTotal")}</span>
-              <span className="text-2xl font-bold text-slate-900 tabular-nums">{formatRupees(ev.total)}</span>
-            </div>
+            {FEATURES.purchasePrices ? (
+              <div className="mt-3 flex items-baseline justify-between border-t border-slate-200 pt-3">
+                <span className="text-base font-bold text-slate-900">{t("newStock.billTotal")}</span>
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{formatRupees(ev.total)}</span>
+              </div>
+            ) : null}
           </Card>
           {ev.problems.length > 0 && draft.lines.length > 0 ? (
             <ul className="flex flex-col gap-1.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3" role="alert">

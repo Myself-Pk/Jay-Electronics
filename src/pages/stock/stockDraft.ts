@@ -49,7 +49,7 @@ export function splitSerials(text: string): string[] {
     .filter(Boolean);
 }
 
-export function evaluateStock(d: StockDraft, today: string): StockEvaluation {
+export function evaluateStock(d: StockDraft, today: string, requirePrices = true): StockEvaluation {
   const problems: StockProblem[] = [];
   if (d.lines.length === 0) problems.push({ key: "no_items" });
   if (d.kind === "purchase" && !d.supplierName.trim()) problems.push({ key: "supplier" });
@@ -67,9 +67,11 @@ export function evaluateStock(d: StockDraft, today: string): StockEvaluation {
       if (n <= 0) problems.push({ key: "qty", params: { product } });
     }
     qty.push(n);
-    const rate = line.rateText.trim() ? parseRupees(line.rateText) : d.kind === "opening_stock" ? 0 : null;
+    // A distributor's rate is needed only while purchase prices are switched on (src/lib/features.ts).
+    const needRate = requirePrices && d.kind === "purchase";
+    const rate = line.rateText.trim() ? parseRupees(line.rateText) : needRate ? null : 0;
     const gst = line.gstText.trim() ? parseRupees(line.gstText) : 0;
-    if (rate === null || rate < 0 || (d.kind === "purchase" && rate === 0) || gst === null || gst < 0) {
+    if (rate === null || rate < 0 || (needRate && rate === 0) || gst === null || gst < 0) {
       problems.push({ key: "rate", params: { product } });
       lineTotals.push(null);
     } else {

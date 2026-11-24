@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 /**
  * Reads the shop's stock list (stock-list-template.csv, saved from Excel as CSV)
  * into products ready to save, with a friendly problem list per row.
@@ -159,7 +160,8 @@ export function readStockList(text: string, categories: Category[], existing: Ca
     if (mrp !== null && retail !== null && retail > mrp) problems.push({ key: "aboveMrp" });
 
     const serialText = get("hasSerial").toLowerCase();
-    const hasSerial = category?.isService
+    // Serial numbers are switched off for now (src/lib/features.ts): everything is counted by quantity.
+    const hasSerial = category?.isService || !FEATURES.serialNumbers
       ? false
       : serialText
         ? /^(y|yes|true|1|haan|ha)$/.test(serialText)
@@ -187,12 +189,12 @@ export function readStockList(text: string, categories: Category[], existing: Ca
         dealerPrice: dealer,
         minPrice: null,
         hasSerial,
-        warrantyFreeMonths: hasSerial ? (free ?? 0) : 0,
-        warrantyProrataMonths: hasSerial ? (prorata ?? 0) : 0,
+        warrantyFreeMonths: category.isService ? 0 : (free ?? 0),
+        warrantyProrataMonths: category.isService ? 0 : (prorata ?? 0),
         lowStockLevel: low ?? 0,
         hsn: get("hsn"),
         gstRate: null,
-        purchasePrice: purchase,
+        ...(FEATURES.purchasePrices ? { purchasePrice: purchase } : {}),
         ...(!hasSerial && !category.isService && stock ? { openingStock: stock } : {}),
       },
     };

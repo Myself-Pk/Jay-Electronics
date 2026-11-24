@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 import { Lock, PackagePlus, Truck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/auth/SessionProvider";
@@ -57,7 +58,9 @@ export function PurchasesPage() {
                   {p.supplierBillNo ? <span className="block text-sm text-slate-500">{t("purchases.billNo")} {p.supplierBillNo}</span> : null}
                 </span>
                 <span className="text-sm text-slate-600">{t("newStock.pieces", { count: p.itemCount })}</span>
-                <span className="w-28 text-right text-[16px] font-bold text-slate-900 tabular-nums">{formatRupees(p.total)}</span>
+                {FEATURES.purchasePrices ? (
+                  <span className="w-28 text-right text-[16px] font-bold text-slate-900 tabular-nums">{formatRupees(p.total)}</span>
+                ) : null}
               </li>
             ))}
           </ul>

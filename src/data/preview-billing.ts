@@ -166,7 +166,8 @@ export function previewSaveBill(
       lineNo: i + 1,
       description: label,
       serialNo: unit?.serial ?? null,
-      warrantyText: product.hasSerial ? warrantyText(product.warrantyFreeMonths, product.warrantyProrataMonths) : "",
+      // Warranty belongs to the product, serial number or not (same as the database).
+      warrantyText: product.isService ? "" : warrantyText(product.warrantyFreeMonths, product.warrantyProrataMonths),
       hsn: product.hsn,
       qty: item.qty,
       rate: item.rate,

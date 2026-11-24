@@ -16,6 +16,11 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 - `src/lib/billMath.ts` holds the shared arithmetic (card charges rounded to whole rupees, scrap by weight, totals). `src/pages/bills/billDraft.ts` is the New Bill screen's validation; both have tests.
 - The printed bill (`BillSheet.tsx`) is always English. Customers open bills at `/b/<share_token>` without logging in.
 
+## Switched off for now (owner's choice, Nov 2026)
+- `src/lib/features.ts`: `purchasePrices: false` hides purchase price, distributor rates, purchase totals and all profit figures; `serialNumbers: false` makes every product count-based (no serial switch, no scanning). The database still supports both — flip the switch to bring them back.
+- Warranty no longer depends on serials: product warranty months print on every bill line (`bill_items_warranty_text` trigger in `*_warranty_without_serials.sql`), and "Add old sale" accepts any non-service product.
+- The real stock list (107 products, 190 pieces, selling prices only) was loaded on 24 Nov 2026 after wiping all test data; a backup of the test data is in `backups/2026-11-24_2107`.
+
 ## Products and stock
 - `save_product(jsonb)` (owner only) and `receive_stock(jsonb)` (anyone logged in) in `*_products_stock.sql`; Preview copies in `src/data/preview-stock.ts` — keep them in step.
 - Serial-numbered items get stock only by scanning serials (New stock arrived, or its "Opening stock" mode). Count-based items can also get opening stock when the product is added or imported.

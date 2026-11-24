@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 import { todayISO } from "@/lib/dates";
 import { fromPaise, parseRupees, toPaise, type Paise } from "@/lib/money";
 import {
@@ -58,7 +59,8 @@ const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? 
 
 /** Sales, money, expenses and products sold between two dates (inclusive). */
 export async function getReport(from: string, to: string, role: Role | undefined): Promise<ReportData> {
-  const withProfit = canSeeOwnerData(role);
+  // Profit needs purchase prices, which are switched off for now (src/lib/features.ts).
+  const withProfit = canSeeOwnerData(role) && FEATURES.purchasePrices;
   const input = supabase ? await liveInput(from, to, withProfit) : await previewInput(from, to, withProfit);
   return { report: buildReport(input), bills: input.bills };
 }

@@ -37,7 +37,7 @@ export function OldSaleDialog({ open, onClose, onSaved }: { open: boolean; onClo
   }, [open]);
 
   const choices = useMemo(
-    () => searchCatalog((catalog.data ?? []).filter((p) => p.hasSerial && !p.isService), query, 6),
+    () => searchCatalog((catalog.data ?? []).filter((p) => !p.isService), query, 6),
     [catalog.data, query],
   );
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(soldOn) && soldOn <= todayISO();

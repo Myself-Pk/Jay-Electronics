@@ -384,7 +384,7 @@ export const hi: Translations = {
     already_settled: "यह बजाज पेमेंट पहले ही मिल चुका दर्ज है।",
     future_day: "आने वाले दिन को बंद नहीं कर सकते।",
     bad_amount: "रकम जाँच लें।",
-    no_serial_product: "{{product}} में सीरियल नंबर नहीं होते, इसलिए इसकी वारंटी ट्रैक नहीं होती।",
+    no_serial_product: "{{product}} एक सर्विस है, इसकी वारंटी नहीं होती।",
     bad_sale_date: "बिक्री की तारीख जाँच लें — आगे की तारीख नहीं हो सकती।",
   },
   customers: {

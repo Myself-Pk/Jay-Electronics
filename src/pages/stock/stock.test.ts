@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 import { describe, expect, it } from "vitest";
 import { PREVIEW_CATEGORIES } from "@/data/preview-store";
 import type { CatalogProduct } from "@/data/types";
@@ -20,7 +21,7 @@ const trolley: CatalogProduct = { ...battery, id: "p2", brand: null, categoryId:
 describe("product form", () => {
   it("turns what was typed into a product", () => {
     const d = { ...emptyProductDraft(cat("Inverter battery")), brand: " Exide ", model: "Tall Tubular", capacity: "150Ah",
-      mrp: "17,000", retail: "14200", dealer: "13300", purchase: "12000", warrantyFree: "36", warrantyProrata: "24", lowStock: "2" };
+      mrp: "17,000", retail: "14200", dealer: "13300", purchase: "12000", warrantyFree: "36", warrantyProrata: "24", lowStock: "2", hasSerial: true };
     const r = draftToProductInput(d, cats, true);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -47,8 +48,16 @@ describe("product form", () => {
     expect(service.ok && service.input.hasSerial).toBe(false);
     const water = draftToProductInput({ ...emptyProductDraft(cat("Accessories")), model: "Water", retail: "60", openingStock: "10" }, cats, true);
     expect(water.ok && water.input.openingStock).toBe(10);
-    const bat = draftToProductInput({ ...emptyProductDraft(cat("Inverter battery")), model: "X", retail: "1", openingStock: "10" }, cats, true);
+    const bat = draftToProductInput({ ...emptyProductDraft(cat("Inverter battery")), model: "X", retail: "1", openingStock: "10", hasSerial: true }, cats, true);
     expect(bat.ok && "openingStock" in bat.input).toBe(false);
+  });
+
+  it("while serial numbers are switched off, a new battery is counted and keeps its warranty", () => {
+    const draft = emptyProductDraft(cat("Inverter battery"));
+    expect(draft.hasSerial).toBe(FEATURES.serialNumbers);
+    const r = draftToProductInput({ ...draft, model: "Inverlast", capacity: "220Ah", retail: "19900", openingStock: "2", warrantyFree: "48", warrantyProrata: "24" }, cats, true);
+    expect(r.ok && r.input).toMatchObject({ warrantyFreeMonths: 48, warrantyProrataMonths: 24 });
+    if (!FEATURES.serialNumbers) expect(r.ok && r.input).toMatchObject({ hasSerial: false, openingStock: 2 });
   });
 });
 
@@ -82,9 +91,11 @@ describe("stock list import", () => {
     ].join("\n");
     const rows = readStockList(csv, cats, [battery]);
     expect(rows.map((r) => r.status)).toEqual(["skipped", "ready", "ready", "problem", "problem", "problem"]);
-    expect(rows[1]).toMatchObject({ label: "Exide Tall Tubular 150Ah", needsSerialScan: true });
-    expect(rows[1].input).toMatchObject({ retailPrice: 1_420_000, purchasePrice: 1_200_000, warrantyFreeMonths: 36, lowStockLevel: 2 });
-    expect(rows[1].input && "openingStock" in rows[1].input).toBe(false);
+    expect(rows[1]).toMatchObject({ label: "Exide Tall Tubular 150Ah", needsSerialScan: FEATURES.serialNumbers });
+    expect(rows[1].input).toMatchObject({ retailPrice: 1_420_000, warrantyFreeMonths: 36, warrantyProrataMonths: 24, lowStockLevel: 2 });
+    // Purchase price and serial numbers follow the switches in src/lib/features.ts.
+    expect(rows[1].input?.purchasePrice).toBe(FEATURES.purchasePrices ? 1_200_000 : undefined);
+    expect(rows[1].input && "openingStock" in rows[1].input).toBe(FEATURES.serialNumbers ? false : true);
     expect(rows[2].input).toMatchObject({ hasSerial: false, openingStock: 6 });
     expect(rows[3].problems).toEqual([{ key: "category", params: { value: "Toys" } }]);
     expect(rows[4].problems.map((p) => p.key)).toEqual(["price", "duplicate"]);
@@ -103,6 +114,14 @@ describe("new stock arrived", () => {
   it("needs a distributor, serials, quantities and rates for a purchase", () => {
     const d = { ...emptyStockDraft(today), lines: [line(battery), line(trolley)] };
     expect(evaluateStock(d, today).problems.map((p) => p.key)).toEqual(["supplier", "serials", "rate", "qty", "rate"]);
+  });
+
+  it("with purchase prices switched off, a distributor's stock needs no rate", () => {
+    const d = { ...emptyStockDraft(today), supplierName: "Shiv Shakti", lines: [line(trolley, { qtyText: "4" })] };
+    const ev = evaluateStock(d, today, false);
+    expect(ev.problems).toEqual([]);
+    expect(toStockInput(d, ev).items[0]).toMatchObject({ qty: 4, rate: 0, gstPaid: 0 });
+    expect(evaluateStock({ ...d, lines: [line(trolley, { qtyText: "4", rateText: "abc" })] }, today, false).problems.map((p) => p.key)).toEqual(["rate"]);
   });
 
   it("opening stock needs no distributor or rate", () => {

@@ -382,7 +382,7 @@ export const en = {
     already_settled: "This Bajaj payment is already marked as received.",
     future_day: "You can't close a day that hasn't happened yet.",
     bad_amount: "Check the amount.",
-    no_serial_product: "{{product}} has no serial numbers, so there's no warranty to track.",
+    no_serial_product: "{{product}} is a service, so there's no warranty to track.",
     bad_sale_date: "Check the sale date — it can't be in the future.",
   },
   customers: {

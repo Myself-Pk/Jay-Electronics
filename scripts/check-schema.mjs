@@ -655,7 +655,7 @@ await check("add_old_sale: a battery from the paper register, with its customer;
   await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ serial_no: "AMR-001" })), "serial_exists");
   await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ sold_on: "2999-01-01" })), "bad_sale_date");
   await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ sold_on: "not a date" })), "bad_sale_date");
-  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ product_id: ids.trolley })), "no_serial_product");
+  await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ product_id: ids.delivery })), "no_serial_product");
   await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ product_id: "nope" })), "product_not_found");
   await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ phone: "" })), "customer_required");
   await expectBillError(STAFF, () => call(STAFF, "add_old_sale", sale({ phone: "12345" })), "bad_phone");
@@ -701,6 +701,19 @@ await check("warranty_search finds batteries by serial, mobile number and bill n
   const home = (await as(STAFF, "select warranty_pending as n from public.v_attention_counts")).rows[0].n;
   const oldOne = (await as(STAFF, "select needs_registration as r from public.v_warranty_units where serial_no = 'OLD-123'")).rows[0].r;
   if (pending !== home || !oldOne) throw new Error(`to-do ${pending}, Home ${home}, old sale needs registration: ${oldOne}`);
+});
+
+await check("products without serial numbers still print their warranty on the bill; old sales accept them", async () => {
+  await db.exec("update public.products set warranty_free_months = 6, warranty_prorata_months = 0 where model = 'Battery trolley'");
+  const bill = await saveBill(STAFF, { items: [{ product_id: ids.trolley, qty: 1, rate: 800 }], payments: [{ mode: "cash", amount: 800 }] });
+  const line = (await db.query("select warranty_text from public.bill_items where bill_id = $1", [bill.id])).rows[0];
+  if (line.warranty_text !== "6 months warranty") throw new Error(JSON.stringify(line));
+  const sale = await call(STAFF, "add_old_sale", { product_id: ids.trolley, serial_no: "OLD-TROLLEY-1", sold_on: "2025-01-01", phone: "9876512345" });
+  if (!sale.unit_id) throw new Error(JSON.stringify(sale));
+  const delivery = (await db.query(
+    "select bi.warranty_text from public.bill_items bi join public.products p on p.id = bi.product_id where p.is_service limit 1",
+  )).rows[0];
+  if (delivery && delivery.warranty_text !== "") throw new Error("a service got warranty text");
 });
 
 await db.close();

@@ -1,3 +1,4 @@
+import { FEATURES } from "@/lib/features";
 import { startOfMonthISO, startOfWeekISO, todayISO } from "@/lib/dates";
 import { toPaise } from "@/lib/money";
 import { supabase } from "@/lib/supabase";
@@ -112,7 +113,7 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
 export async function getDashboardSummary(role: Role | undefined): Promise<DashboardSummary> {
   if (!supabase) {
     await previewDelay();
-    return previewSummary(canSeeOwnerData(role));
+    return previewSummary(canSeeOwnerData(role) && FEATURES.purchasePrices);
   }
   const { data, error } = await supabase.rpc("dashboard_summary");
   if (error) throw error;
@@ -133,7 +134,7 @@ export async function getDashboardSummary(role: Role | undefined): Promise<Dashb
     udhaarCustomers: s.udhaar_customers,
     days: s.days.map((d) => ({ date: d.date, total: toPaise(d.total), bills: d.bills })),
     top: s.top.map((t) => ({ product: t.product, qty: Number(t.qty), amount: toPaise(t.amount) })),
-    profit: s.profit === null ? null : toPaise(s.profit),
+    profit: s.profit === null || !FEATURES.purchasePrices ? null : toPaise(s.profit),
   };
 }
 
