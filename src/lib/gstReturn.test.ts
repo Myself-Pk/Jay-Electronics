@@ -74,6 +74,18 @@ describe("gstReturn", () => {
     expect(r.hsnB2c.map((h) => `${h.hsn}:${h.uqc}`)).toEqual(["—:OTH", "8507:NOS", "8541:NOS"]);
   });
 
+  it("keeps tax-free lines (Delivery & installation) out of taxable figures, as nil / exempt", () => {
+    const delivery = line({ hsn: "", description: "Delivery & installation", amount: 30_000, gstRate: 0, gstAmount: 0, productGstRate: 0, isService: true });
+    const r = gstReturn(
+      [bill({ items: [line(), delivery], total: 2_020_000 }), bill({ number: "JE/26-27/0005", customerGstin: "10ABCDE1234F1Z5", placeOfSupply: "10", items: [delivery], total: 30_000 })],
+      "20",
+    );
+    expect(r.exempt).toEqual({ intraRegistered: 0, intraUnregistered: 30_000, interRegistered: 30_000, interUnregistered: 0, total: 60_000 });
+    expect(r.outward.taxable).toBe(1_686_441);
+    expect(r.hsnB2c.map((h) => h.hsn)).toEqual(["8507"]);
+    expect(r.b2b).toEqual([]);
+  });
+
   it("writes GSTR-1 sheets for Excel", () => {
     const r = gstReturn([bill({ customerGstin: "20AEMPK3613H1ZW", customerName: 'Shop "A", Chas' })], "20");
     const csv = gstr1Csv(r, (c) => (c === "20" ? "20-Jharkhand" : c));

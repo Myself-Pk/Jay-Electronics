@@ -30,6 +30,7 @@ import {
 import { Switch } from "@/components/ui/Switch";
 import { CHARGES_GST_RATE, gstInside } from "@/lib/billMath";
 import { todayISO } from "@/lib/dates";
+import { FEATURES } from "@/lib/features";
 import { CustomerSection, formatPhone } from "./CustomerSection";
 import { ItemSearch } from "./ItemSearch";
 import { LineRow } from "./LineRow";
@@ -174,6 +175,8 @@ export function NewBillPage() {
 
   /** Enter in the search box: if it looks like a serial number, look it up. */
   const onEnterText = async (text: string): Promise<boolean> => {
+    // With serial numbers switched off, a scanned code is a product barcode (handled by ItemSearch).
+    if (!FEATURES.serialNumbers) return false;
     if (/\s/.test(text) || !/\d/.test(text) || text.length < 4) return false;
     const found = await lookupSerial(text).catch(() => null);
     if (!found) {

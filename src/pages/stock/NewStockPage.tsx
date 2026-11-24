@@ -18,7 +18,7 @@ import { formatDate, todayISO } from "@/lib/dates";
 import { formatRupees } from "@/lib/money";
 import { useAsync } from "@/lib/useAsync";
 import { newKey } from "../bills/billDraft";
-import { ItemSearch } from "../bills/ItemSearch";
+import { ItemSearch, type PickOptions } from "../bills/ItemSearch";
 import { emptyStockDraft, evaluateStock, splitSerials, toStockInput, type StockDraft, type StockLine } from "./stockDraft";
 
 const DRAFT_KEY = "je-stock-draft";
@@ -165,9 +165,17 @@ export function NewStockPage() {
   const ev = evaluateStock(draft, today, FEATURES.purchasePrices);
   const stockable = (catalog.data ?? []).filter((p) => !p.isService);
 
-  const addProduct = (product: CatalogProduct) => {
+  const addProduct = (product: CatalogProduct, options?: PickOptions) => {
     const existing = draft.lines.findIndex((l) => l.product.id === product.id);
     if (existing >= 0) {
+      // Scanning the same box again counts one more piece.
+      if (options?.scanned && !product.hasSerial) {
+        setDraft((d) => ({
+          ...d,
+          lines: d.lines.map((l, i) => (i === existing ? { ...l, qtyText: String((Number(l.qtyText) || 0) + 1) } : l)),
+        }));
+        return;
+      }
       focusNext.current = existing;
       setDraft({ ...draft });
       return;

@@ -91,6 +91,11 @@ export interface GstReturn {
   interStateUnregistered: { pos: string; taxable: Paise; igst: Paise }[];
   /** Bills made without GST (their GST is included in the figures above) */
   withoutGst: { count: number; value: Paise; tax: Paise };
+  /**
+   * Tax-free (0%) lines such as Delivery & installation: GSTR-1 table 8 (nil rated / exempt, split
+   * by intra/inter-state and registered/unregistered buyer) and GSTR-3B 3.1(c).
+   */
+  exempt: { intraRegistered: Paise; intraUnregistered: Paise; interRegistered: Paise; interUnregistered: Paise; total: Paise };
 }
 
 const ZERO: TaxSplit = { taxable: 0, igst: 0, cgst: 0, sgst: 0 };
@@ -132,7 +137,7 @@ function taxedLines(bill: GstBill): { line: GstLine; rate: BasisPoints; gst: Pai
       gst: gstInside(bill.extraCharges, CHARGES_GST_RATE),
     });
   }
-  return out.filter((x) => x.rate > 0);
+  return out;
 }
 
 export function gstReturn(bills: GstBill[], shopState: string): GstReturn {
@@ -143,6 +148,7 @@ export function gstReturn(bills: GstBill[], shopState: string): GstReturn {
   const hsnB2b = new Map<string, HsnRow>();
   const hsnB2c = new Map<string, HsnRow>();
   const withoutGst = { count: 0, value: 0, tax: 0 };
+  const exempt = { intraRegistered: 0, intraUnregistered: 0, interRegistered: 0, interUnregistered: 0, total: 0 };
 
   const numbered = [...bills].sort((a, b) => a.number.localeCompare(b.number, "en", { numeric: true }));
   const documents = {
@@ -167,6 +173,13 @@ export function gstReturn(bills: GstBill[], shopState: string): GstReturn {
     const registered = !!bill.customerGstin;
     let billTax = 0;
     for (const { line, rate, gst } of taxedLines(bill)) {
+      if (rate <= 0) {
+        // Tax free: reported as nil rated / exempt, not in the taxable figures.
+        const bucket = `${inter ? "inter" : "intra"}${registered ? "Registered" : "Unregistered"}` as keyof typeof exempt;
+        exempt[bucket] += line.amount;
+        exempt.total += line.amount;
+        continue;
+      }
       const taxable = line.amount - gst;
       const tax = splitTax(gst, inter);
       billTax += gst;
@@ -226,6 +239,7 @@ export function gstReturn(bills: GstBill[], shopState: string): GstReturn {
     hsnB2c: [...hsnB2c.values()].sort(byHsn),
     interStateUnregistered: [...interMap.values()],
     withoutGst,
+    exempt,
   };
 }
 

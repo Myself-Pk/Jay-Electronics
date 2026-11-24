@@ -491,6 +491,7 @@ await check("Regular GST: Tax Invoice with GST inside the price; 'no GST' bill; 
 
 console.log("Checking products and stock arrival:");
 
+const call0 = async (personId, sql, params = []) => (await as(personId, sql, params)).rows;
 const call = async (personId, fn, payload, role = "authenticated") =>
   (await as(personId, `select public.${fn}($1::jsonb) as res`, [JSON.stringify(payload)], role)).rows[0].res;
 const purchaseCount = async () => (await db.query("select count(*)::int as n from public.purchases")).rows[0].n;
@@ -775,6 +776,47 @@ await check("warranty can be changed on each bill line; services never get warra
     blocked = /permission denied/.test(err.message);
   }
   if (!blocked) throw new Error("save_bill_core can be called directly");
+});
+
+await check("Delivery & installation is tax free: no GST or HSN on the Tax Invoice", async () => {
+  await db.exec("update public.shop_settings set gst_scheme = 'regular', scheme_from = '2000-01-01'");
+  try {
+    const p = (await db.query("select gst_rate_pct::text rate, hsn from public.products where id = $1", [ids.delivery])).rows[0];
+    if (p.rate !== "0.00" || p.hsn !== "") throw new Error(JSON.stringify(p));
+    const bill = await saveBill(STAFF, {
+      items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }, { product_id: ids.delivery, qty: 1, rate: 300 }],
+      payments: [{ mode: "cash", amount: 1480 }],
+    });
+    const lines = (await db.query("select gst_rate_pct::text rate, gst_amount::text gst, hsn from public.bill_items where bill_id = $1 order by line_no", [bill.id])).rows;
+    const tax = (await db.query("select tax_total::text t from public.bills where id = $1", [bill.id])).rows[0].t;
+    if (lines[1].rate !== "0.00" || lines[1].gst !== "0.00" || lines[1].hsn !== "" || tax !== "180.00") throw new Error(JSON.stringify({ lines, tax }));
+  } finally {
+    await db.exec("update public.shop_settings set gst_scheme = 'composition'");
+  }
+});
+
+await check("barcodes: link once, find again; moving a code needs a yes; staff can link, nobody logged out can", async () => {
+  await call0(STAFF, "select public.link_barcode('8901234567890', $1)", [ids.trolley]);
+  await call0(STAFF, "select public.link_barcode('8901234567890', $1)", [ids.trolley]); // same product again: fine
+  const found = (await as(STAFF, "select product_id from public.product_barcodes where code = '8901234567890'")).rows[0];
+  if (found?.product_id !== ids.trolley) throw new Error("code not found");
+  await expectBillError(STAFF, () => call0(STAFF, "select public.link_barcode('8901234567890', $1)", [ids.battery]), "barcode_taken");
+  await call0(STAFF, "select public.link_barcode('8901234567890', $1, true)", [ids.battery]);
+  const moved = (await db.query("select product_id from public.product_barcodes where code = '8901234567890'")).rows[0].product_id;
+  if (moved !== ids.battery) throw new Error("code not moved");
+  await expectBillError(STAFF, () => call0(STAFF, "select public.link_barcode('ab', $1)", [ids.trolley]), "bad_barcode");
+  await expectBillError(STAFF, () => call0(STAFF, "select public.link_barcode('SERVICE-1', $1)", [ids.delivery]), "product_not_found");
+  for (const sql of ["select * from public.product_barcodes", "select public.link_barcode('ANON-1', null)"]) {
+    let blocked = false;
+    try {
+      await as(null, sql, [], "anon");
+    } catch (err) {
+      blocked = /permission denied/.test(err.message);
+    }
+    if (!blocked) throw new Error(`not blocked for anon: ${sql}`);
+  }
+  const deleted = await as(OWNER, "delete from public.product_barcodes returning code").catch((e) => e);
+  if (!(deleted instanceof Error) && deleted.rows.length > 0) throw new Error("barcodes could be deleted");
 });
 
 await db.close();

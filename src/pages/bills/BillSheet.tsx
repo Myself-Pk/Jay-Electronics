@@ -180,8 +180,9 @@ export function BillSheet({ bill, onReady, className }: Props) {
               <td className="py-2 pr-2 text-right tabular-nums">{money(item.rate)}</td>
               {isTaxInvoice ? (
                 <>
-                  <td className="py-2 pr-2 text-right tabular-nums">{(item.gstRate ?? 0) > 0 ? formatPercent(item.gstRate) : "—"}</td>
-                  <td className="py-2 pr-2 text-right tabular-nums">{money(item.amount - (item.gstAmount ?? 0))}</td>
+                  {/* Tax-free lines (e.g. Delivery & installation) show no GST at all. */}
+                  <td className="py-2 pr-2 text-right tabular-nums">{(item.gstRate ?? 0) > 0 ? formatPercent(item.gstRate) : ""}</td>
+                  <td className="py-2 pr-2 text-right tabular-nums">{(item.gstRate ?? 0) > 0 ? money(item.amount - (item.gstAmount ?? 0)) : ""}</td>
                 </>
               ) : null}
               <td className="py-2 text-right font-semibold tabular-nums">{money(item.amount)}</td>

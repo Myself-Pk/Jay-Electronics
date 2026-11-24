@@ -131,6 +131,7 @@ export function GstReturnCard({ from, to }: { from: string; to: string }) {
               rows={[
                 [t("gstReturn.outward"), ...taxCells(r.outward)],
                 ...r.interStateUnregistered.map((x) => [t("gstReturn.interState", { state: stateLabel(x.pos) }), money(x.taxable), money(x.igst), "—", "—"]),
+                ...(r.exempt.total > 0 ? [[t("gstReturn.exempt3b"), money(r.exempt.total), "—", "—", "—"]] : []),
               ]}
             />
           </section>
@@ -173,6 +174,15 @@ export function GstReturnCard({ from, to }: { from: string; to: string }) {
                 <p className="text-sm font-semibold text-slate-700">{t("gstReturn.hsnB2b")}</p>
                 <Table head={[t("gstReturn.hsn"), t("gstReturn.qty"), t("gstReturn.rate"), ...taxHead]} rows={hsnRows(r.hsnB2b)} />
               </div>
+            ) : null}
+            {r.exempt.total > 0 ? (
+              <p className="text-[15px] text-slate-700">
+                <span className="font-semibold">{t("gstReturn.exempt1")}: </span>
+                {t("gstReturn.exemptText", {
+                  intra: money(r.exempt.intraUnregistered + r.exempt.intraRegistered),
+                  inter: money(r.exempt.interUnregistered + r.exempt.interRegistered),
+                })}
+              </p>
             ) : null}
             <p className="text-[15px] text-slate-700">
               <span className="font-semibold">{t("gstReturn.documents")}: </span>

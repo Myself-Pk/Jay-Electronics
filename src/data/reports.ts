@@ -404,7 +404,7 @@ export async function getGstBills(from: string, to: string): Promise<GstBill[]> 
             amount: i.amount,
             gstRate: i.gstRate ?? 0,
             gstAmount: i.gstAmount ?? 0,
-            productGstRate: product?.isService ? 1800 : (product?.gstRate ?? 1800),
+            productGstRate: product?.gstRate ?? 1800,
             isService: product?.isService ?? false,
           };
         }),

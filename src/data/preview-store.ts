@@ -69,6 +69,8 @@ interface PreviewStore {
   /** Added later; older saved copies may not have them yet. */
   expenses?: PreviewExpense[];
   dayCloses?: Record<string, PreviewDayClose>;
+  /** Scanned barcode / QR code → product id */
+  barcodes?: Record<string, string>;
 }
 
 export interface PreviewExpense {
@@ -149,9 +151,10 @@ const products: PreviewProduct[] = [
   battery({ id: "p-water", brand: null, category: "Accessories", categoryOrder: 9, model: "Distilled Water", capacity: "5 L",
     mrp: rupees(90), retailPrice: rupees(60), dealerPrice: rupees(50), hasSerial: false, needsRegistration: false,
     lowStockLevel: 5, hsn: "" }),
-  battery({ id: "s-delivery", brand: null, category: "Services", categoryOrder: 10, model: "Delivery & installation",
+  // Tax free: no GST and no HSN on the invoice (same as the database).
+  { ...battery({ id: "s-delivery", brand: null, category: "Services", categoryOrder: 10, model: "Delivery & installation",
     capacity: "", retailPrice: rupees(300), hasSerial: false, isService: true, needsRegistration: false, lowStockLevel: 0,
-    hsn: "9987" }),
+    hsn: "" }), gstRate: 0 },
   battery({ id: "s-charging", brand: null, category: "Services", categoryOrder: 10, model: "Battery charging",
     capacity: "", retailPrice: 0, hasSerial: false, isService: true, needsRegistration: false, lowStockLevel: 0, hsn: "9987" }),
   battery({ id: "s-repair", brand: null, category: "Services", categoryOrder: 10, model: "Repair", capacity: "",

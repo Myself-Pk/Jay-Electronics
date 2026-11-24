@@ -25,7 +25,7 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 /** Every app table, in an order that restores cleanly (things referred to come first). */
 export const BACKUP_TABLES = [
-  "shop_settings", "people", "bill_counters", "brands", "categories", "products", "product_costs",
+  "shop_settings", "people", "bill_counters", "brands", "categories", "products", "product_costs", "product_barcodes",
   "customers", "suppliers", "purchases", "purchase_items", "units", "stock_history", "bills", "bill_items",
   "bill_item_costs", "payments", "finance_deals", "scrap_entries", "complaints", "complaint_updates",
   "job_cards", "expenses", "day_closes", "change_log", "backup_log",
