@@ -4,7 +4,7 @@ import { ArrowLeft, Ban, BadgeCheck, CircleCheck, MessageCircle, Plus, Printer, 
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/auth/SessionProvider";
 import { Badge } from "@/components/ui/Badge";
-import { Button, LinkButton, buttonClasses } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
@@ -15,9 +15,11 @@ import { asBillError } from "@/data/errors";
 import { canSeeOwnerData, type BillDetails } from "@/data/types";
 import { formatDate } from "@/lib/dates";
 import { formatRupees } from "@/lib/money";
-import { billShareUrl, whatsAppUrl } from "@/lib/share";
+import { billPdfName, billSheetToPdf, shareBillPdf } from "@/lib/billPdf";
+import { whatsAppShareUrl, whatsAppUrl } from "@/lib/share";
 import { useAsync } from "@/lib/useAsync";
 import { BillSheet } from "./BillSheet";
+import { formatPhone } from "./CustomerSection";
 
 export function billStatusBadge(bill: Pick<BillDetails, "status" | "balance">, t: (key: string, o?: Record<string, unknown>) => string) {
   if (bill.status === "cancelled") return <Badge tone="red">{t("bills.cancelled")}</Badge>;
@@ -53,10 +55,18 @@ export function BillPage() {
   const autoDone = useRef(false);
   const onSheetReady = useCallback(() => setSheetReady(true), []);
 
-  /** The WhatsApp chat link for this bill, or null if the customer has no mobile number. */
-  const whatsAppLink = useCallback(
-    (b: BillDetails): string | null => {
-      if (!/^\d{10}$/.test(b.customerPhone)) return null;
+  // The PDF of this bill, made in the background from a hidden A4 copy of the sheet as soon as the
+  // bill opens, so tapping "Send PDF on WhatsApp" can open the share menu straight away.
+  const pdfSheetRef = useRef<HTMLDivElement>(null);
+  const [pdfSheetReady, setPdfSheetReady] = useState(false);
+  const onPdfSheetReady = useCallback(() => setPdfSheetReady(true), []);
+  const [pdf, setPdf] = useState<File | null>(null);
+  const [pdfFailed, setPdfFailed] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  /** The WhatsApp message that goes with the PDF. */
+  const shareText = useCallback(
+    (b: BillDetails): string => {
       const lines = [
         b.customerName ? t("bills.share.greeting", { name: b.customerName }) : t("bills.share.greeting", { name: "" }).replace(" ,", ","),
         t("bills.share.thanks", { shop: b.shop.shopName }),
@@ -65,28 +75,52 @@ export function BillPage() {
         t("bills.share.total", { amount: formatRupees(b.total) }),
         ...(b.balance > 0 ? [t("bills.share.balance", { amount: formatRupees(b.balance) })] : []),
         "",
-        t("bills.share.link", { link: billShareUrl(b.shareToken) }),
+        t("bills.share.attached"),
         t("bills.share.keep"),
       ];
-      return whatsAppUrl(b.customerPhone, lines.join("\n"));
+      return lines.join("\n");
     },
     [t, i18n.language],
   );
 
-  /** Right after "Save & WhatsApp": open WhatsApp in a new tab. The bill is already saved. */
-  const openWhatsAppAfterSave = useCallback(
-    (b: BillDetails) => {
-      const url = whatsAppLink(b);
-      if (!url) {
-        toast(t("bills.noPhone"), "info");
-        return;
-      }
-      const win = window.open(url, "_blank");
-      if (win) win.opener = null;
-      else toast(t("bills.tapWhatsApp"), "info"); // pop-up blocked: the WhatsApp button below still works
-    },
-    [whatsAppLink, toast, t],
-  );
+  useEffect(() => {
+    if (!bill || !pdfSheetReady || !pdfSheetRef.current) return;
+    const sheet = pdfSheetRef.current.firstElementChild as HTMLElement | null;
+    if (!sheet) return;
+    let cancelled = false;
+    setPdf(null);
+    setPdfFailed(false);
+    // Let fonts and layout settle, then take the picture of the hidden copy.
+    const timer = window.setTimeout(() => {
+      billSheetToPdf(sheet, billPdfName(bill.number)).then(
+        (file) => {
+          if (!cancelled) setPdf(file);
+        },
+        (err: unknown) => {
+          console.error(err);
+          if (!cancelled) setPdfFailed(true);
+        },
+      );
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [bill, pdfSheetReady]);
+
+  /** Straight from the tap: the share menu with the PDF, or download it and open the customer's chat. */
+  const sendPdf = async () => {
+    if (!bill || !pdf) return;
+    const text = shareText(bill);
+    const chat = /^\d{10}$/.test(bill.customerPhone) ? whatsAppUrl(bill.customerPhone, text) : whatsAppShareUrl(text);
+    setSending(true);
+    try {
+      const result = await shareBillPdf(pdf, text, chat);
+      if (result === "downloaded") toast(t("bills.pdfDownloaded"), "info");
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Right after saving: print or open WhatsApp once, then forget, so a refresh doesn't repeat it.
   useEffect(() => {
@@ -95,8 +129,9 @@ export function BillPage() {
     const then = navState.then;
     navigate(location.pathname, { replace: true, state: { justSaved: true } });
     if (then === "print") window.setTimeout(() => window.print(), 150);
-    else openWhatsAppAfterSave(bill);
-  }, [bill, sheetReady, navState, navigate, location.pathname, openWhatsAppAfterSave]);
+    // Sharing a file needs a tap, so after "Save & WhatsApp" the green button is the next step.
+    else toast(t("bills.tapWhatsApp"), "info");
+  }, [bill, sheetReady, navState, navigate, location.pathname, toast, t]);
 
   if (billQ.loading) {
     return (
@@ -118,7 +153,6 @@ export function BillPage() {
   }
 
   const pendingRegistrations = bill.status === "saved" ? bill.items.filter((i) => i.needsRegistration && i.unitId) : [];
-  const waUrl = whatsAppLink(bill);
 
   const doCancel = async () => {
     if (!reason.trim()) {
@@ -166,18 +200,16 @@ export function BillPage() {
             <Button icon={Printer} onClick={() => window.print()}>
               {t("bills.print")}
             </Button>
-            {waUrl ? (
-              // A real link (not a script pop-up), so browsers always open WhatsApp in a new tab
-              // and this page — with the saved bill — stays where it is.
-              <a href={waUrl} target="_blank" rel="noopener noreferrer" className={buttonClasses("success", "md")}>
-                <MessageCircle className="size-5 shrink-0" />
-                {t("bills.whatsapp")}
-              </a>
-            ) : (
-              <Button variant="success" icon={MessageCircle} disabled title={t("bills.noPhone")}>
-                {t("bills.whatsapp")}
-              </Button>
-            )}
+            <Button
+              variant="success"
+              icon={MessageCircle}
+              loading={(!pdf && !pdfFailed) || sending}
+              disabled={pdfFailed}
+              title={pdfFailed ? t("bills.pdfFailed") : undefined}
+              onClick={() => void sendPdf()}
+            >
+              {pdf || pdfFailed ? t("bills.whatsapp") : t("bills.pdfPreparing")}
+            </Button>
             <LinkButton to="/bills/new" variant="secondary" icon={Plus}>
               {t("bills.newBill")}
             </LinkButton>
@@ -197,6 +229,14 @@ export function BillPage() {
             ) : null}
           </div>
         </div>
+
+        {pdfFailed ? (
+          <p className="rounded-xl bg-amber-50 px-4 py-3 text-[15px] font-medium text-amber-800">{t("bills.pdfFailed")}</p>
+        ) : /^\d{10}$/.test(bill.customerPhone) ? (
+          <p className="-mt-2 text-sm text-slate-500 sm:text-right">
+            {t("bills.pdfHint", { name: bill.customerName || formatPhone(bill.customerPhone), phone: formatPhone(bill.customerPhone) })}
+          </p>
+        ) : null}
 
         {navState?.justSaved && bill.status === "saved" ? (
           <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-[15px] font-medium text-emerald-800">
@@ -245,6 +285,13 @@ export function BillPage() {
 
       <div className="overflow-x-auto pb-6 print:overflow-visible print:pb-0">
         <BillSheet bill={bill} onReady={onSheetReady} className="min-w-[640px] print:min-w-0" />
+      </div>
+
+      {/* Hidden A4-wide copy of the bill used to make the PDF (same size on a phone or a PC). */}
+      <div aria-hidden className="pointer-events-none fixed top-0 -left-[10000px] w-[210mm] print:hidden">
+        <div ref={pdfSheetRef}>
+          <BillSheet bill={bill} onReady={onPdfSheetReady} className="max-w-none shadow-none" />
+        </div>
       </div>
 
       <Dialog
