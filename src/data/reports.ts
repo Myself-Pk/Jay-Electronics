@@ -16,6 +16,7 @@ import { asBillError, BillError } from "./errors";
 import { previewDb } from "./preview-billing";
 import { persistPreview, previewDelay, previewStore } from "./preview-store";
 import { canSeeOwnerData, productLabel, type Person, type Role } from "./types";
+import type { GstBill } from "@/lib/gstReturn";
 
 /** Expense kinds offered on Close Day (stored as these keys, shown translated). */
 export const EXPENSE_CATEGORIES = ["tea", "transport", "salary", "electricity", "rent", "shop", "other"] as const;
@@ -373,4 +374,84 @@ export async function closeDay(
   if (error) rethrow(error);
   const r = data as { expected_cash: number | string; difference: number | string | null };
   return { expectedCash: toPaise(r.expected_cash), difference: r.difference === null ? null : toPaise(r.difference) };
+}
+
+// ---------- GST return (Regular GST) ----------
+
+/** Every bill between two dates with what the GST return needs (cancelled ones included). */
+export async function getGstBills(from: string, to: string): Promise<GstBill[]> {
+  if (!supabase) {
+    await previewDelay();
+    const db = previewDb();
+    return db.bills
+      .filter((b) => b.date >= from && b.date <= to)
+      .map((b) => ({
+        number: b.number,
+        date: b.date,
+        status: b.status,
+        title: b.title ?? "bill_of_supply",
+        customerName: b.customerName,
+        customerGstin: b.customerGstin ?? null,
+        placeOfSupply: b.placeOfSupply ?? "20",
+        total: b.total,
+        extraCharges: b.extraCharges,
+        items: b.items.map((i) => {
+          const product = db.products.find((p) => productLabel(p) === i.description);
+          return {
+            hsn: i.hsn,
+            description: i.description,
+            qty: i.qty,
+            amount: i.amount,
+            gstRate: i.gstRate ?? 0,
+            gstAmount: i.gstAmount ?? 0,
+            productGstRate: product?.isService ? 1800 : (product?.gstRate ?? 1800),
+            isService: product?.isService ?? false,
+          };
+        }),
+      }));
+  }
+  const db = supabase;
+  type Row = {
+    number: string; bill_date: string; status: "saved" | "cancelled"; title: GstBill["title"]; customer_name: string;
+    customer_gstin: string | null; place_of_supply: string | null; total: string; extra_charges: string;
+    bill_items: {
+      hsn: string; description: string; qty: string; amount: string; gst_rate_pct: string; gst_amount: string;
+      products: { gst_rate_pct: string; is_service: boolean } | null;
+    }[];
+  };
+  const rows = await readAll<Row>((a, b) =>
+    db
+      .from("bills")
+      .select(
+        `number, bill_date, status, title, customer_name, customer_gstin, place_of_supply, total, extra_charges,
+         bill_items(hsn, description, qty, amount, gst_rate_pct, gst_amount, products(gst_rate_pct, is_service))`,
+      )
+      .eq("doc_type", "bill")
+      .gte("bill_date", from)
+      .lte("bill_date", to)
+      .order("bill_date")
+      .order("seq")
+      .range(a, b),
+  );
+  return rows.map((b) => ({
+    number: b.number,
+    date: b.bill_date,
+    status: b.status,
+    title: b.title,
+    customerName: b.customer_name,
+    customerGstin: b.customer_gstin,
+    placeOfSupply: b.place_of_supply ?? "20",
+    total: toPaise(b.total),
+    extraCharges: toPaise(b.extra_charges),
+    items: b.bill_items.map((i) => ({
+      hsn: i.hsn,
+      description: i.description,
+      qty: Number(i.qty),
+      amount: toPaise(i.amount),
+      gstRate: toPaise(i.gst_rate_pct), // 18.00 → 1800 basis points
+      gstAmount: toPaise(i.gst_amount),
+      productGstRate: toPaise(i.products?.gst_rate_pct ?? 0),
+      isService: i.products?.is_service ?? false,
+    })),
+  }));
 }

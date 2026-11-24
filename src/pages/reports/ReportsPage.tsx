@@ -26,6 +26,7 @@ import {
 import { useAsync } from "@/lib/useAsync";
 import { MODE_ICONS } from "../bills/PaymentSection";
 import { SalesChart } from "../home/SalesChart";
+import { GstReturnCard } from "./GstReturnCard";
 
 type T = (key: string, options?: Record<string, unknown>) => string;
 
@@ -326,6 +327,9 @@ export function ReportsPage() {
 
             {settings.data?.gstScheme === "composition" ? <GstCard rate={settings.data.compositionRate} t={t} lang={lang} /> : null}
           </div>
+
+          {/* Regular GST: what goes into GSTR-1 and GSTR-3B for these dates. */}
+          {settings.data?.gstScheme === "regular" ? <GstReturnCard from={range.from} to={range.to} /> : null}
         </>
       )}
     </div>

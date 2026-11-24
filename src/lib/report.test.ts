@@ -153,6 +153,9 @@ describe("dates and GST helpers", () => {
     expect(presetRange("lastMonth", "2027-01-15")).toEqual({ from: "2026-12-01", to: "2026-12-31" });
     expect(presetRange("lastMonth", "2027-03-31")).toEqual({ from: "2027-02-01", to: "2027-02-28" });
     expect(presetRange("quarter", today)).toEqual({ from: "2026-10-01", to: today });
+    expect(presetRange("lastQuarter", today)).toEqual({ from: "2026-07-01", to: "2026-09-30" });
+    expect(presetRange("lastQuarter", "2027-02-10")).toEqual({ from: "2026-10-01", to: "2026-12-31" });
+    expect(presetRange("lastQuarter", "2026-05-01")).toEqual({ from: "2026-01-01", to: "2026-03-31" });
     expect(presetRange("year", today)).toEqual({ from: "2026-04-01", to: today });
     expect(presetRange("year", "2027-02-01")).toEqual({ from: "2026-04-01", to: "2027-02-01" });
     expect(presetRange("yesterday", "2027-01-01")).toEqual({ from: "2026-12-31", to: "2026-12-31" });

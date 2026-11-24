@@ -39,6 +39,9 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 - Reports and Close Day add up plain rows with `buildReport()` in `src/lib/report.ts` (tested) — the same function for live data and Preview (`src/data/reports.ts`), so they always agree. Long ranges are read in pages of 1,000 rows.
 - `close_day(jsonb)` (`*_close_day.sql`) works out the expected cash itself (start cash + cash in − cash out − cash expenses) and can be re-run for the same day. Expenses are inserted directly (RLS: anyone adds, owner cancels); categories are keys (`tea`, `transport`…) translated via `closeDay.cats.*`.
 
+- GST return (Regular): `gstReturn()` in `src/lib/gstReturn.ts` (tested) turns a period's bills (`getGstBills()` in `src/data/reports.ts`) into GSTR-3B 3.1(a)/3.2 and GSTR-1 B2B, B2CS, HSN (B2B and B2C apart) and documents issued; `gstr1Csv()` writes them in the GST offline tool's columns. Bills made without GST and old "Bill of Supply" bills still owe GST and are included (worked out at the product's rate). Shown in Reports (`GstReturnCard.tsx`) for the dates picked there ("Last quarter" preset for QRMP).
+- GST 2.0 rates (22 Sep 2025): batteries (8507) 18%, inverters/UPS/stabilizers/chargers (8504) 18%, solar panels 5%, solar inverters and solar charge controllers 5% (category defaults set in `*_gst_rates_2025.sql`), services 18%.
+
 ## Warranty Check
 - `v_warranty_units` (security_invoker view) + `warranty_search(text)` (serial part ≥3 chars, 10-digit mobile, bill number or its sequence) + `add_old_sale(jsonb)` (paper-register sales: unit `status='sold'`, `source='old_register'`, no stock change) in `*_warranty.sql`; Preview copies in `src/data/warranty.ts`.
 - Registration to-do = sold units of brands with `warranty_registration_required`, not yet registered, **excluding old_register** (same rule in `v_attention_counts`). Pending from an earlier day shows red. Warranty maths in `src/lib/warranty.ts` (tested).

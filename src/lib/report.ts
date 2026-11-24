@@ -247,7 +247,7 @@ export function quarterOf(iso: string): { from: string; to: string; label: strin
   };
 }
 
-export const RANGE_KEYS = ["today", "yesterday", "week", "month", "lastMonth", "quarter", "year"] as const;
+export const RANGE_KEYS = ["today", "yesterday", "week", "month", "lastMonth", "quarter", "lastQuarter", "year"] as const;
 export type RangeKey = (typeof RANGE_KEYS)[number];
 
 const isoUTC = (d: Date) => d.toISOString().slice(0, 10);
@@ -273,6 +273,11 @@ export function presetRange(key: RangeKey, today: string): { from: string; to: s
       return { from: at(y, m - 1, 1), to: at(y, m, 0) };
     case "quarter":
       return { from: quarterOf(today).from, to: today };
+    case "lastQuarter": {
+      const [qy, qm] = quarterOf(today).from.split("-").map(Number);
+      const previous = quarterOf(at(qy, qm, 0)); // the day before this quarter began
+      return { from: previous.from, to: previous.to };
+    }
     case "year":
       return { from: at(m >= 4 ? y : y - 1, 4, 1), to: today };
   }
