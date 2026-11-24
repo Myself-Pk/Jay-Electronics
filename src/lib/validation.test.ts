@@ -60,3 +60,10 @@ describe("UPI ID and PIN", () => {
     expect(isValidPin("12345a")).toBe(false);
   });
 });
+
+describe("the shop's own GSTIN", () => {
+  it("passes the GSTIN checksum (from the GST registration certificate)", () => {
+    expect(isValidGstin("20AEMPK3613H1ZW")).toBe(true);
+    expect(isValidGstin("20AEMPK3613H1ZX")).toBe(false);
+  });
+});

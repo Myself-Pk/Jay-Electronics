@@ -9,6 +9,7 @@ interface CustomerRow {
   phone: string | null;
   area: string;
   customer_type: CustomerType;
+  gstin: string | null;
 }
 
 const toCustomer = (r: CustomerRow): Customer => ({
@@ -17,6 +18,7 @@ const toCustomer = (r: CustomerRow): Customer => ({
   phone: r.phone,
   area: r.area,
   type: r.customer_type,
+  gstin: r.gstin,
 });
 
 /** Escape % and _ so they are matched literally in a LIKE search. */
@@ -37,7 +39,7 @@ export async function searchCustomers(query: string, limit = 6): Promise<Custome
       .slice(0, limit)
       .map((c) => ({ ...c }));
   }
-  let request = supabase.from("customers").select("id, name, phone, area, customer_type").eq("active", true);
+  let request = supabase.from("customers").select("id, name, phone, area, customer_type, gstin").eq("active", true);
   request = byPhone ? request.like("phone", `${digits}%`) : request.ilike("name", `%${escapeLike(q)}%`);
   const { data, error } = await request.order("name").limit(limit);
   if (error) throw error;
@@ -53,7 +55,7 @@ export async function findCustomerByPhone(phone: string): Promise<Customer | nul
   }
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, phone, area, customer_type")
+    .select("id, name, phone, area, customer_type, gstin")
     .eq("phone", digits)
     .maybeSingle<CustomerRow>();
   if (error) throw error;

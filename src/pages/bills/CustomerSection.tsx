@@ -19,10 +19,12 @@ export const formatPhone = (phone: string) => (phone.length === 10 ? `${phone.sl
 interface Props {
   customer: DraftCustomer;
   onChange: (customer: DraftCustomer, options?: { typeChanged?: boolean }) => void;
-  invalid?: { phone?: boolean; name?: boolean };
+  invalid?: { phone?: boolean; name?: boolean; gstin?: boolean };
+  /** Regular GST bills: show the optional business GSTIN box. */
+  showGstin?: boolean;
 }
 
-export function CustomerSection({ customer, onChange, invalid }: Props) {
+export function CustomerSection({ customer, onChange, invalid, showGstin }: Props) {
   const { t } = useTranslation();
   const [suggestions, setSuggestions] = useState<Customer[]>([]);
   const [focus, setFocus] = useState<"phone" | "name" | null>(null);
@@ -30,7 +32,7 @@ export function CustomerSection({ customer, onChange, invalid }: Props) {
 
   const choose = (c: Customer) => {
     onChange(
-      { id: c.id, phone: c.phone ?? "", name: c.name, area: c.area, type: c.type },
+      { id: c.id, phone: c.phone ?? "", name: c.name, area: c.area, type: c.type, gstin: c.gstin ?? "" },
       { typeChanged: c.type !== customer.type },
     );
     setSuggestions([]);
@@ -200,6 +202,26 @@ export function CustomerSection({ customer, onChange, invalid }: Props) {
             </div>
           </div>
         )}
+        {showGstin ? (
+          <Field
+            label={t("newBill.gstin")}
+            htmlFor="bill-gstin"
+            optional={t("common.optional")}
+            hint={t("newBill.gstinHint")}
+            error={invalid?.gstin ? t("validation.gstin") : undefined}
+            className="mt-4 sm:max-w-sm"
+          >
+            <Input
+              id="bill-gstin"
+              autoComplete="off"
+              spellCheck={false}
+              value={customer.gstin ?? ""}
+              onChange={(e) => set({ gstin: e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15) })}
+              invalid={invalid?.gstin}
+              className="font-mono uppercase"
+            />
+          </Field>
+        ) : null}
       </CardBody>
     </Card>
   );

@@ -200,12 +200,16 @@ export interface Customer {
   phone: string | null;
   area: string;
   type: CustomerType;
+  /** A business customer's GSTIN (remembered from their bills). */
+  gstin?: string | null;
 }
 
 export type BillPaymentMode = Exclude<PaymentMode, "bajaj">;
 
 export interface SaveBillInput {
-  customer: { id?: string; phone?: string; name?: string; area?: string; type?: CustomerType };
+  customer: { id?: string; phone?: string; name?: string; area?: string; type?: CustomerType; gstin?: string };
+  /** Regular GST only: false makes a plain Bill without GST (asked again in a popup first). */
+  gst?: boolean;
   items: {
     productId: string;
     unitId?: string | null;
@@ -234,6 +238,10 @@ export interface BillItem {
   brand: string | null;
   needsRegistration: boolean;
   registeredAt: string | null;
+  /** GST rate on this line (basis points; 0 on bills without GST). */
+  gstRate: BasisPoints;
+  /** GST inside this line's amount. */
+  gstAmount: Paise;
 }
 
 export interface BillScrap {
@@ -315,12 +323,16 @@ export interface ShopForBill {
   gstin: string;
   upiId: string;
   billTerms: string;
+  /** "20" */
+  stateCode: string;
+  stateName: string;
 }
 
 export interface BillDetails {
   id: string;
   number: string;
-  title: "bill_of_supply" | "tax_invoice";
+  /** Tax Invoice (Regular GST), plain Bill (made without GST), or Bill of Supply (Composition). */
+  title: "bill_of_supply" | "tax_invoice" | "bill";
   /** yyyy-mm-dd */
   date: string;
   status: "saved" | "cancelled";
@@ -340,6 +352,12 @@ export interface BillDetails {
   total: Paise;
   paid: Paise;
   balance: Paise;
+  /** GST included in the total (Tax Invoice only). */
+  taxTotal: Paise;
+  /** A business customer's GSTIN, if given. */
+  customerGstin: string | null;
+  /** State code of the place of supply, e.g. "20" (Jharkhand). Another state means IGST. */
+  placeOfSupply: string;
   shareToken: string;
   createdAt: string;
   shop: ShopForBill;

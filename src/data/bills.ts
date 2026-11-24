@@ -13,6 +13,8 @@ function rethrow(error: unknown): never {
 function toPayload(input: SaveBillInput) {
   return {
     customer: input.customer,
+    // Only sent when the bill was made without GST on purpose (Regular GST).
+    ...(input.gst === false ? { gst: false } : {}),
     items: input.items.map((i) => ({
       product_id: i.productId,
       unit_id: i.unitId ?? undefined,
@@ -84,6 +86,9 @@ interface BillJson {
     total: Num;
     paid: Num;
     balance: Num;
+    tax_total: Num | null;
+    customer_gstin: string | null;
+    place_of_supply: string | null;
     share_token: string;
     created_at: string;
   };
@@ -101,11 +106,16 @@ interface BillJson {
     brand: string | null;
     needs_registration: boolean;
     registered_at: string | null;
+    gst_rate_pct: Num | null;
+    gst_amount: Num | null;
   }[];
   scrap: { battery_type: string; weight_kg: Num | null; rate_per_kg: Num | null; fixed_amount: Num | null; value: Num }[];
   payments: { mode: PaymentMode; amount: Num; charges: Num; reference: string; status: "saved" | "cancelled" }[];
   finance: { company: string; reference_no: string; loan_amount: Num; customer_charges: Num; status: string } | null;
-  shop: { shop_name: string; address: string; phone: string; gstin: string | null; upi_id: string | null; bill_terms: string };
+  shop: {
+    shop_name: string; address: string; phone: string; gstin: string | null; upi_id: string | null; bill_terms: string;
+    state_code?: string; state_name?: string;
+  };
 }
 
 function parseBill(j: BillJson): BillDetails {
@@ -134,6 +144,8 @@ function parseBill(j: BillJson): BillDetails {
       brand: i.brand,
       needsRegistration: i.needs_registration,
       registeredAt: i.registered_at,
+      gstRate: toPaise(i.gst_rate_pct ?? 0), // 18.00 → 1800 basis points
+      gstAmount: toPaise(i.gst_amount ?? 0),
     })),
     scrap: j.scrap.map((s) => ({
       batteryType: s.battery_type,
@@ -165,6 +177,9 @@ function parseBill(j: BillJson): BillDetails {
     total: toPaise(b.total),
     paid: toPaise(b.paid),
     balance: toPaise(b.balance),
+    taxTotal: toPaise(b.tax_total ?? 0),
+    customerGstin: b.customer_gstin ?? null,
+    placeOfSupply: b.place_of_supply ?? j.shop.state_code ?? "20",
     shareToken: b.share_token,
     createdAt: b.created_at,
     shop: {
@@ -174,6 +189,8 @@ function parseBill(j: BillJson): BillDetails {
       gstin: j.shop.gstin ?? "",
       upiId: j.shop.upi_id ?? "",
       billTerms: j.shop.bill_terms,
+      stateCode: j.shop.state_code ?? "20",
+      stateName: j.shop.state_name ?? "Jharkhand",
     },
   };
 }

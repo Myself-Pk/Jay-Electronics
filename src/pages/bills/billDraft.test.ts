@@ -166,3 +166,26 @@ describe("warranty on a bill line", () => {
     expect("warrantyFreeMonths" in items[2]).toBe(false);
   });
 });
+
+describe("GST on a bill (Regular GST)", () => {
+  it("sends the business GSTIN and only marks 'no GST' when chosen", () => {
+    const base = draftWith({
+      customer: { id: null, phone: "9876500001", name: "Sunil", area: "", type: "retail", gstin: " 20aempk3613h1zw " },
+      lines: [line(trolley)],
+      payments: [{ key: "p1", mode: "cash", amountText: "800", chargesText: "", chargesEdited: false }],
+    });
+    const input = toSaveInput(base, evaluate(base, DEFAULT_SETTINGS, "staff"));
+    expect(input.customer.gstin).toBe("20AEMPK3613H1ZW");
+    expect("gst" in input).toBe(false);
+    const noGst = { ...base, noGst: true };
+    expect(toSaveInput(noGst, evaluate(noGst, DEFAULT_SETTINGS, "staff")).gst).toBe(false);
+  });
+
+  it("stops the bill when the GSTIN is wrong", () => {
+    const d = draftWith({
+      customer: { id: null, phone: "9876500001", name: "Sunil", area: "", type: "retail", gstin: "20AEMPK3613H1ZX" },
+      lines: [line(trolley)],
+    });
+    expect(keys(d)).toContain("bad_gstin");
+  });
+});

@@ -27,6 +27,9 @@ import {
   type BillDraft,
   type DraftLine,
 } from "./billDraft";
+import { Switch } from "@/components/ui/Switch";
+import { CHARGES_GST_RATE, gstInside } from "@/lib/billMath";
+import { todayISO } from "@/lib/dates";
 import { CustomerSection, formatPhone } from "./CustomerSection";
 import { ItemSearch } from "./ItemSearch";
 import { LineRow } from "./LineRow";
@@ -90,6 +93,27 @@ export function NewBillPage() {
   }
 
   const ev = evaluate(draft, settings, person?.role);
+  // Regular GST: bills are Tax Invoices unless made without GST on purpose (asked again first).
+  const regularGst = settings.gstScheme === "regular" && todayISO() >= settings.schemeFrom;
+  const gstBill = regularGst && !draft.noGst;
+  const gstIncluded = gstBill
+    ? draft.lines.reduce((sum, l, i) => sum + gstInside((ev.lineRates[i] ?? 0) * l.qty, l.product.gstRate), 0) +
+      gstInside(ev.totals.extraCharges, CHARGES_GST_RATE)
+    : 0;
+  const setGstBill = async (on: boolean) => {
+    if (on) {
+      setDraft((d) => ({ ...d, noGst: false }));
+      return;
+    }
+    const ok = await confirm({
+      title: t("newBill.noGstConfirmTitle"),
+      message: t("newBill.noGstConfirmText"),
+      confirmLabel: t("newBill.noGstConfirmYes"),
+      cancelLabel: t("newBill.noGstConfirmNo"),
+      tone: "danger",
+    });
+    if (ok) setDraft((d) => ({ ...d, noGst: true }));
+  };
   const setLines = (update: (lines: DraftLine[]) => DraftLine[]) => setDraft((d) => ({ ...d, lines: update(d.lines) }));
 
   /** Add a product. Batteries get the oldest serial in stock, or the serial that was scanned/typed. */
@@ -220,6 +244,16 @@ export function NewBillPage() {
         ...(totals.balance > 0
           ? [{ label: t("newBill.confirmUdhaar"), value: <span className="text-red-600">{formatRupees(totals.balance)}</span> }]
           : []),
+        ...(regularGst
+          ? [
+              {
+                label: t("newBill.confirmGst"),
+                value: gstBill ? t("newBill.gstIncluded", { amount: formatRupees(gstIncluded) }) : (
+                  <span className="text-red-600">{t("newBill.withoutGst")}</span>
+                ),
+              },
+            ]
+          : []),
         ...stockLines,
       ],
       confirmLabel: t("newBill.confirmYes"),
@@ -271,7 +305,9 @@ export function NewBillPage() {
             invalid={{
               phone: problemKeys.has("bad_phone") || (problemKeys.has("customer_required") && draft.lines.length > 0),
               name: problemKeys.has("name_required"),
+              gstin: problemKeys.has("bad_gstin"),
             }}
+            showGstin={gstBill}
           />
 
           <Card>
@@ -336,7 +372,21 @@ export function NewBillPage() {
           />
         </div>
 
-        <div className="lg:sticky lg:top-20">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-20">
+          {regularGst ? (
+            <Card className={gstBill ? "px-5 py-3" : "border-red-200 bg-red-50 px-5 py-3"}>
+              <Switch
+                checked={gstBill}
+                onChange={(on) => void setGstBill(on)}
+                label={t("newBill.gstBill")}
+                description={
+                  gstBill
+                    ? t("newBill.gstBillOn", { amount: formatRupees(gstIncluded) })
+                    : t("newBill.gstBillOff")
+                }
+              />
+            </Card>
+          ) : null}
           <PaymentSection
             draft={draft}
             ev={ev}

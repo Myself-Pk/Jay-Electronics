@@ -4,7 +4,7 @@
  * the same with sample data as it will with the real database.
  */
 import { formatBillNumber, financialYearOf } from "@/lib/billNumber";
-import { cardCharge, computeTotals, scrapByWeight, warrantyText } from "@/lib/billMath";
+import { CHARGES_GST_RATE, cardCharge, computeTotals, gstInside, scrapByWeight, warrantyText } from "@/lib/billMath";
 import { todayISO } from "@/lib/dates";
 import { fromPaise } from "@/lib/money";
 import { BillError } from "./errors";
@@ -31,7 +31,6 @@ export function previewSaveBill(
   const today = todayISO();
   const s = store.settings;
 
-  if (s.gstScheme === "regular" && today >= s.schemeFrom) throw new BillError("regular_gst_not_ready");
   if (input.items.length === 0) throw new BillError("no_items");
 
   // ----- Customer -----
@@ -57,6 +56,16 @@ export function previewSaveBill(
       customer = newCustomer;
     }
   }
+
+  // ----- GST (same rules as save_bill_core) -----
+  // Regular GST: a Tax Invoice with GST worked out inside the GST-inclusive prices, unless the
+  // bill was made without GST on purpose (a plain Bill). Composition: Bill of Supply.
+  const regular = s.gstScheme === "regular" && today >= s.schemeFrom;
+  const gstBill = regular && input.gst !== false;
+  const title: BillDetails["title"] = !regular ? "bill_of_supply" : gstBill ? "tax_invoice" : "bill";
+  let gstin = (input.customer.gstin ?? "").replace(/\s/g, "").toUpperCase() || null;
+  if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin)) throw new BillError("bad_gstin");
+  if (!gstin && customer?.gstin) gstin = customer.gstin;
 
   // ----- Items (checked first; nothing changes until everything is valid) -----
   const owner = isOwnerRole(person.role);
@@ -134,6 +143,7 @@ export function previewSaveBill(
 
   // ----- Everything checks out: save -----
   if (newCustomer) store.customers.push(newCustomer);
+  if (customer && gstin) customer.gstin = gstin;
   const now = new Date();
   const fy = financialYearOf(now);
   const usedThisYear = store.bills.filter((b) => b.number.includes(`/${fy.label}/`)).map((b) => Number(b.number.split("/")[2]));
@@ -184,13 +194,17 @@ export function previewSaveBill(
       brand: product.brand,
       needsRegistration: product.needsRegistration,
       registeredAt: null,
+      gstRate: gstBill ? product.gstRate : 0,
+      gstAmount: gstBill ? gstInside(item.qty * item.rate, product.gstRate) : 0,
     };
   });
+  const taxTotal =
+    items.reduce((sum, i) => sum + i.gstAmount, 0) + (gstBill ? gstInside(totals.extraCharges, CHARGES_GST_RATE) : 0);
 
   const bill: BillDetails = {
     id,
     number,
-    title: "bill_of_supply",
+    title,
     date: today,
     status: "saved",
     cancelReason: null,
@@ -228,6 +242,9 @@ export function previewSaveBill(
         }
       : null,
     ...totals,
+    taxTotal,
+    customerGstin: gstin,
+    placeOfSupply: gstin ? gstin.slice(0, 2) : "20",
     shareToken,
     createdAt: now.toISOString(),
     shop: {
@@ -237,6 +254,8 @@ export function previewSaveBill(
       gstin: s.gstin,
       upiId: s.upiId,
       billTerms: s.billTerms,
+      stateCode: "20",
+      stateName: "Jharkhand",
     },
   };
   store.bills.unshift(bill);

@@ -437,14 +437,51 @@ await check("cancel_bill: owner only, needs a reason, puts stock back", async ()
   if (log.n !== 1) throw new Error(`expected 1 bill change logged, got ${log.n}`);
 });
 
-await check("Regular GST bills are refused until that part is built", async () => {
+await check("Regular GST: Tax Invoice with GST inside the price; 'no GST' bill; customer GSTIN and place of supply", async () => {
   await db.exec("update public.shop_settings set gst_scheme = 'regular', scheme_from = '2000-01-01'");
+  await db.exec("update public.products set gst_rate_pct = 18 where model = 'Battery trolley'");
+  const billOf = async (id) => (await db.query(
+    "select title, tax_total::text tax, total::text total, place_of_supply pos, customer_gstin gstin from public.bills where id = $1", [id],
+  )).rows[0];
+  const linesOf = async (id) => (await db.query(
+    "select gst_rate_pct::text rate, gst_amount::text gst, amount::text amount from public.bill_items where bill_id = $1 order by line_no", [id],
+  )).rows;
   try {
-    await expectBillError(
-      STAFF,
-      () => saveBill(STAFF, { items: [{ product_id: ids.trolley, qty: 1, rate: 800 }], payments: [{ mode: "cash", amount: 800 }] }),
-      "regular_gst_not_ready",
-    );
+    // ₹1,180 including 18% GST = ₹1,000 + ₹180 GST. The customer still pays ₹1,180.
+    const a = await saveBill(STAFF, { items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }], payments: [{ mode: "cash", amount: 1180 }] });
+    const ba = await billOf(a.id);
+    const la = await linesOf(a.id);
+    if (ba.title !== "tax_invoice" || ba.tax !== "180.00" || ba.total !== "1180.00" || ba.pos !== "20") throw new Error(JSON.stringify(ba));
+    if (la[0].rate !== "18.00" || la[0].gst !== "180.00") throw new Error(JSON.stringify(la));
+
+    // Card charge ₹12 carries 18% GST inside it too: ₹1.83.
+    const card = await saveBill(STAFF, { items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }], payments: [{ mode: "debit_card", amount: 1180, charges: 12 }] });
+    const bc = await billOf(card.id);
+    if (bc.tax !== "181.83") throw new Error(`card bill tax ${bc.tax}`);
+
+    // Made without GST on purpose: a plain Bill, no tax.
+    const b = await saveBill(STAFF, { gst: false, items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }], payments: [{ mode: "cash", amount: 1180 }] });
+    const bb = await billOf(b.id);
+    const lb = await linesOf(b.id);
+    if (bb.title !== "bill" || bb.tax !== "0.00" || bb.total !== "1180.00" || lb[0].gst !== "0.00" || lb[0].rate !== "0.00") throw new Error(JSON.stringify({ bb, lb }));
+
+    // A business customer from Bihar (GSTIN starts with 10): place of supply 10, GSTIN remembered.
+    const c = await saveBill(STAFF, {
+      customer: { phone: "9876500777", name: "Biz Co", gstin: " 10abcde1234f1z5 " },
+      items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }],
+      payments: [{ mode: "cash", amount: 1180 }],
+    });
+    const bcg = await billOf(c.id);
+    if (bcg.pos !== "10" || bcg.gstin !== "10ABCDE1234F1Z5") throw new Error(JSON.stringify(bcg));
+    const saved = (await db.query("select gstin from public.customers where phone = '9876500777'")).rows[0].gstin;
+    if (saved !== "10ABCDE1234F1Z5") throw new Error(`customer gstin ${saved}`);
+    // Next bill for the same customer picks up the GSTIN without typing it again.
+    const again = await saveBill(STAFF, { customer: { phone: "9876500777" }, items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }], payments: [{ mode: "cash", amount: 1180 }] });
+    if ((await billOf(again.id)).gstin !== "10ABCDE1234F1Z5") throw new Error("GSTIN not remembered");
+
+    await expectBillError(STAFF, () => saveBill(STAFF, { customer: { phone: "9876500778", name: "X", gstin: "NOTAGSTIN" }, items: [{ product_id: ids.trolley, qty: 1, rate: 1180 }] }), "bad_gstin");
+    const json = (await as(STAFF, "select public.get_bill($1) as j", [a.id])).rows[0].j;
+    if (Number(json.items[0].gst_amount) !== 180 || json.shop.state_code !== "20") throw new Error(JSON.stringify(json.items[0]));
   } finally {
     await db.exec("update public.shop_settings set gst_scheme = 'composition'");
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardCharge, computeTotals, scrapByWeight, warrantyText } from "./billMath";
+import { cardCharge, computeTotals, gstInside, scrapByWeight, splitCgstSgst, taxSummary, warrantyText } from "./billMath";
 
 describe("cardCharge", () => {
   it("is a percentage rounded to whole rupees", () => {
@@ -101,5 +101,37 @@ describe("warrantyText", () => {
     expect(warrantyText(48, 24)).toBe("48 months free + 24 months pro-rata");
     expect(warrantyText(24, 0)).toBe("24 months warranty");
     expect(warrantyText(0, 0)).toBe("");
+  });
+});
+
+describe("GST inside a GST-inclusive price (Regular scheme)", () => {
+  it("works out the GST part to the paisa, like save_bill", () => {
+    expect(gstInside(118_000, 1800)).toBe(18_000); // ₹1,180 = ₹1,000 + ₹180
+    expect(gstInside(1_990_000, 1800)).toBe(303_559); // Inverlast ₹19,900: ₹16,864.41 + ₹3,035.59
+    expect(gstInside(1_200, 1800)).toBe(183); // ₹12 card charge → ₹1.83
+    expect(gstInside(105_000, 500)).toBe(5_000); // solar panel at 5%
+    expect(gstInside(100_000, 0)).toBe(0);
+    expect(gstInside(-118_000, 1800)).toBe(-18_000);
+  });
+
+  it("splits GST into CGST and SGST, odd paisa to CGST", () => {
+    expect(splitCgstSgst(303_559)).toEqual({ cgst: 151_780, sgst: 151_779 });
+    expect(splitCgstSgst(18_000)).toEqual({ cgst: 9_000, sgst: 9_000 });
+  });
+
+  it("adds lines up by GST rate, with card charges in the 18% row", () => {
+    const rows = taxSummary(
+      [
+        { amount: 1_990_000, gstRate: 1800, gst: 303_559 },
+        { amount: 118_000, gstRate: 1800, gst: 18_000 },
+        { amount: 640_000, gstRate: 500, gst: gstInside(640_000, 500) },
+        { amount: 30_000, gstRate: 0, gst: 0 },
+      ],
+      1_200,
+    );
+    expect(rows).toEqual([
+      { rate: 500, taxable: 609_524, gst: 30_476 },
+      { rate: 1800, taxable: 1_686_441 + 100_000 + 1_017, gst: 303_559 + 18_000 + 183 },
+    ]);
   });
 });

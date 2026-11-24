@@ -56,3 +56,52 @@ export function warrantyText(freeMonths: number, prorataMonths: number): string 
   if (freeMonths > 0) return `${freeMonths} months warranty`;
   return "";
 }
+
+// ---------- GST (Regular scheme; prices include GST) ----------
+
+/**
+ * The GST part of a GST-inclusive amount, rounded half-up to the paisa — exactly like save_bill:
+ * round(amount − amount × 100 / (100 + rate), 2) = amount × rate / (100 + rate).
+ * ₹1,180 at 18% → ₹180. Integer maths only (no floating-point rupees).
+ */
+export function gstInside(amount: Paise, rate: BasisPoints): Paise {
+  if (rate <= 0 || amount === 0) return 0;
+  const sign = amount < 0 ? -1 : 1;
+  const num = Math.abs(amount) * rate;
+  const den = 10_000 + rate;
+  return sign * Math.floor((2 * num + den) / (2 * den));
+}
+
+/** CGST and SGST halves of a GST amount (the odd paisa goes to CGST). */
+export function splitCgstSgst(gst: Paise): { cgst: Paise; sgst: Paise } {
+  const cgst = Math.ceil(gst / 2);
+  return { cgst, sgst: gst - cgst };
+}
+
+/** GST rate charged on card / Bajaj charges (they're part of the price of the sale). */
+export const CHARGES_GST_RATE: BasisPoints = 1800;
+
+export interface TaxRow {
+  /** Basis points: 18% = 1800 */
+  rate: BasisPoints;
+  taxable: Paise;
+  gst: Paise;
+}
+
+/**
+ * Tax summary for a Tax Invoice, one row per GST rate (what the printed bill shows at the bottom).
+ * Each line's GST is worked out on its own amount (as save_bill does), then added up by rate;
+ * card / Bajaj charges join the 18% row.
+ */
+export function taxSummary(lines: { amount: Paise; gstRate: BasisPoints; gst: Paise }[], charges: Paise): TaxRow[] {
+  const rows = new Map<BasisPoints, TaxRow>();
+  const add = (rate: BasisPoints, amount: Paise, gst: Paise) => {
+    const row = rows.get(rate) ?? { rate, taxable: 0, gst: 0 };
+    row.taxable += amount - gst;
+    row.gst += gst;
+    rows.set(rate, row);
+  };
+  for (const l of lines) if (l.gstRate > 0) add(l.gstRate, l.amount, l.gst);
+  if (charges > 0) add(CHARGES_GST_RATE, charges, gstInside(charges, CHARGES_GST_RATE));
+  return [...rows.values()].sort((a, b) => a.rate - b.rate);
+}

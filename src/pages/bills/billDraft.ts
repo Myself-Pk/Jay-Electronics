@@ -15,7 +15,7 @@ import {
 } from "@/data/types";
 import { cardCharge, computeTotals, scrapByWeight, type BillTotals } from "@/lib/billMath";
 import { formatRupees, paiseToInput, parseRupees, type BasisPoints, type Paise } from "@/lib/money";
-import { isValidMobile, normalizeMobile } from "@/lib/validation";
+import { isValidGstin, isValidMobile, normalizeGstin, normalizeMobile } from "@/lib/validation";
 
 export interface DraftLine {
   key: string;
@@ -62,6 +62,8 @@ export interface DraftCustomer {
   name: string;
   area: string;
   type: CustomerType;
+  /** A business customer's GSTIN (optional; Regular GST bills). */
+  gstin?: string;
 }
 
 export interface BillDraft {
@@ -70,6 +72,8 @@ export interface BillDraft {
   scrap: DraftScrap[];
   payments: DraftPayment[];
   finance: DraftFinance | null;
+  /** Regular GST: true when this bill is made without GST on purpose (confirmed in a popup). */
+  noGst?: boolean;
 }
 
 export const emptyDraft = (): BillDraft => ({
@@ -210,6 +214,7 @@ export function evaluate(draft: BillDraft, settings: ShopSettings, role: Role | 
   // ----- Customer -----
   const needsCustomer = draft.lines.some((l) => l.product.hasSerial) || totals.balance > 0 || draft.finance !== null;
   const c = draft.customer;
+  if ((c.gstin ?? "").trim() && !isValidGstin(c.gstin ?? "")) problems.push({ key: "bad_gstin" });
   const phoneTyped = c.phone.trim() !== "";
   if (!c.id) {
     if (phoneTyped && !isValidMobile(c.phone)) problems.push({ key: "bad_phone" });
@@ -224,12 +229,14 @@ export function evaluate(draft: BillDraft, settings: ShopSettings, role: Role | 
 export function toSaveInput(draft: BillDraft, ev: Evaluated): SaveBillInput {
   const c = draft.customer;
   const phone = normalizeMobile(c.phone);
+  const gstin = (c.gstin ?? "").trim() ? { gstin: normalizeGstin(c.gstin ?? "") } : {};
   return {
     customer: c.id
-      ? { id: c.id, type: c.type }
+      ? { id: c.id, type: c.type, ...gstin }
       : phone
-        ? { phone, name: c.name.trim(), area: c.area.trim(), type: c.type }
-        : { name: c.name.trim(), area: c.area.trim() },
+        ? { phone, name: c.name.trim(), area: c.area.trim(), type: c.type, ...gstin }
+        : { name: c.name.trim(), area: c.area.trim(), ...gstin },
+    ...(draft.noGst ? { gst: false } : {}),
     items: draft.lines.map((l, i) => {
       // A typed serial that matches one of this product's in-stock units is treated as choosing that unit.
       const typed = l.unitId ? null : l.serial.trim().toUpperCase();
