@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@/data/defaults";
 import type { CatalogProduct } from "@/data/types";
-import { emptyDraft, evaluate, repriceLines, toSaveInput, type BillDraft, type DraftLine } from "./billDraft";
+import { emptyDraft, evaluate, lineWarranty, repriceLines, toSaveInput, type BillDraft, type DraftLine } from "./billDraft";
 
 const battery: CatalogProduct = {
   id: "p-bat",
@@ -137,5 +137,32 @@ describe("toSaveInput", () => {
     expect(input.items[1]).toMatchObject({ unitId: null, serialNo: "NEW-9" });
     expect(input.scrap[0]).toEqual({ batteryType: "Inverter battery", weightCentiKg: 1850, ratePerKg: 10_500 });
     expect(input.payments[0]).toEqual({ mode: "upi", towards: 100_000, charges: 0 });
+  });
+});
+
+describe("warranty on a bill line", () => {
+  const inverlast: CatalogProduct = { ...battery, id: "p-inv", hasSerial: false, needsRegistration: false, warrantyFreeMonths: 36, warrantyProrataMonths: 24 };
+  const delivery: CatalogProduct = { ...trolley, id: "p-del", model: "Delivery", isService: true, warrantyFreeMonths: 0, warrantyProrataMonths: 0 };
+
+  it("uses the product's warranty unless it was changed on the bill", () => {
+    expect(lineWarranty(line(inverlast))).toEqual({ free: 36, prorata: 24 });
+    expect(lineWarranty(line(inverlast, { warrantyFree: "24", warrantyProrata: "" }))).toEqual({ free: 24, prorata: 0 });
+    expect(lineWarranty(line(inverlast, { warrantyFree: "abc", warrantyProrata: "24" }))).toBeNull();
+    expect(lineWarranty(line(inverlast, { warrantyFree: "300", warrantyProrata: "0" }))).toBeNull();
+    expect(lineWarranty(line(delivery, { warrantyFree: "12" }))).toEqual({ free: 0, prorata: 0 });
+  });
+
+  it("refuses a bill with unreadable warranty months, and sends what was shown", () => {
+    const bad = draftWith({ lines: [line(inverlast, { warrantyFree: "x" })] });
+    expect(keys(bad)).toContain("bad_warranty");
+    const d = draftWith({
+      lines: [line(inverlast, { warrantyFree: "12", warrantyProrata: "6" }), line(inverlast, { key: "b" }), line(delivery, { rateText: "300" })],
+      payments: [{ key: "p1", mode: "cash", amountText: "29300", chargesText: "", chargesEdited: false }],
+    });
+    const ev = evaluate(d, DEFAULT_SETTINGS, "owner");
+    const items = toSaveInput(d, ev).items;
+    expect(items[0]).toMatchObject({ warrantyFreeMonths: 12, warrantyProrataMonths: 6 });
+    expect(items[1]).toMatchObject({ warrantyFreeMonths: 36, warrantyProrataMonths: 24 });
+    expect("warrantyFreeMonths" in items[2]).toBe(false);
   });
 });

@@ -206,7 +206,16 @@ export type BillPaymentMode = Exclude<PaymentMode, "bajaj">;
 
 export interface SaveBillInput {
   customer: { id?: string; phone?: string; name?: string; area?: string; type?: CustomerType };
-  items: { productId: string; unitId?: string | null; serialNo?: string; qty: number; rate: Paise }[];
+  items: {
+    productId: string;
+    unitId?: string | null;
+    serialNo?: string;
+    qty: number;
+    rate: Paise;
+    /** Warranty printed on this line (filled in from the product, can be changed on the bill). */
+    warrantyFreeMonths?: number;
+    warrantyProrataMonths?: number;
+  }[];
   scrap: { batteryType: string; weightCentiKg?: number; ratePerKg?: Paise; fixedAmount?: Paise }[];
   payments: { mode: BillPaymentMode; towards: Paise; charges: Paise; reference?: string }[];
   finance: { referenceNo: string; loanAmount: Paise; customerCharges: Paise } | null;

@@ -716,6 +716,30 @@ await check("products without serial numbers still print their warranty on the b
   if (delivery && delivery.warranty_text !== "") throw new Error("a service got warranty text");
 });
 
+await check("warranty can be changed on each bill line; services never get warranty", async () => {
+  const bill = await saveBill(STAFF, {
+    items: [
+      { product_id: ids.trolley, qty: 1, rate: 800, warranty_free_months: 12, warranty_prorata_months: 6 },
+      { product_id: ids.trolley, qty: 1, rate: 800, warranty_free_months: 0, warranty_prorata_months: 0 },
+      { product_id: ids.trolley, qty: 1, rate: 800 },
+      { product_id: ids.delivery, qty: 1, rate: 300, warranty_free_months: 24 },
+    ],
+    payments: [{ mode: "cash", amount: 2700 }],
+  });
+  const lines = (await db.query("select warranty_text from public.bill_items where bill_id = $1 order by line_no", [bill.id])).rows.map((r) => r.warranty_text);
+  const expected = ["12 months free + 6 months pro-rata", "", "6 months warranty", ""];
+  if (JSON.stringify(lines) !== JSON.stringify(expected)) throw new Error(JSON.stringify(lines));
+  await expectBillError(STAFF, () => saveBill(STAFF, { items: [{ product_id: ids.trolley, qty: 1, rate: 800, warranty_free_months: -1 }] }), "bad_warranty");
+  await expectBillError(STAFF, () => saveBill(STAFF, { items: [{ product_id: ids.trolley, qty: 1, rate: 800, warranty_free_months: "two" }] }), "bad_warranty");
+  let blocked = false;
+  try {
+    await as(STAFF, "select public.save_bill_core($1::jsonb)", [JSON.stringify({ items: [] })]);
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("save_bill_core can be called directly");
+});
+
 await db.close();
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed.`);

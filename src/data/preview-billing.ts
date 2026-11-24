@@ -70,6 +70,9 @@ export function previewSaveBill(
       throw new BillError("bad_qty", { product: label });
     }
     if (item.rate < 0) throw new BillError("bad_rate", { product: label });
+    for (const m of [item.warrantyFreeMonths, item.warrantyProrataMonths]) {
+      if (m !== undefined && (!Number.isInteger(m) || m < 0 || m > 240)) throw new BillError("bad_warranty");
+    }
     if (product.mrp !== null && item.rate > product.mrp) {
       throw new BillError("above_mrp", { product: label, mrp: fromPaise(product.mrp) });
     }
@@ -167,7 +170,12 @@ export function previewSaveBill(
       description: label,
       serialNo: unit?.serial ?? null,
       // Warranty belongs to the product, serial number or not (same as the database).
-      warrantyText: product.isService ? "" : warrantyText(product.warrantyFreeMonths, product.warrantyProrataMonths),
+      // The warranty chosen on the bill, else the product's own (same as the database).
+      warrantyText: product.isService
+        ? ""
+        : item.warrantyFreeMonths !== undefined || item.warrantyProrataMonths !== undefined
+          ? warrantyText(item.warrantyFreeMonths ?? 0, item.warrantyProrataMonths ?? 0)
+          : warrantyText(product.warrantyFreeMonths, product.warrantyProrataMonths),
       hsn: product.hsn,
       qty: item.qty,
       rate: item.rate,

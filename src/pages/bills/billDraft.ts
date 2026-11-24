@@ -28,6 +28,9 @@ export interface DraftLine {
   qty: number;
   rateText: string;
   priceEdited: boolean;
+  /** Warranty months typed on this line; undefined = the product's own warranty. */
+  warrantyFree?: string;
+  warrantyProrata?: string;
 }
 
 export interface DraftScrap {
@@ -101,6 +104,23 @@ export function lineSerial(line: DraftLine): string {
   return line.serial.trim().toUpperCase();
 }
 
+/**
+ * Warranty printed on a bill line: what was typed on the bill, otherwise the product's own.
+ * An empty box counts as 0. Returns null when a box isn't a whole number up to 240.
+ */
+export function lineWarranty(line: DraftLine): { free: number; prorata: number } | null {
+  if (line.product.isService) return { free: 0, prorata: 0 };
+  const months = (text: string | undefined, fallback: number): number | null => {
+    if (text === undefined) return fallback;
+    const v = text.trim();
+    if (v === "") return 0;
+    return /^\d{1,3}$/.test(v) && Number(v) <= 240 ? Number(v) : null;
+  };
+  const free = months(line.warrantyFree, line.product.warrantyFreeMonths);
+  const prorata = months(line.warrantyProrata, line.product.warrantyProrataMonths);
+  return free === null || prorata === null ? null : { free, prorata };
+}
+
 export interface Problem {
   key: string;
   params?: Record<string, string | number>;
@@ -166,6 +186,7 @@ export function evaluate(draft: BillDraft, settings: ShopSettings, role: Role | 
         problems.push({ key: "below_min", params: { product } });
       }
     }
+    if (lineWarranty(line) === null) problems.push({ key: "bad_warranty", params: { product } });
     if (line.product.hasSerial) {
       const serial = lineSerial(line);
       if (!serial) problems.push({ key: "serial_required", params: { product } });
@@ -219,6 +240,10 @@ export function toSaveInput(draft: BillDraft, ev: Evaluated): SaveBillInput {
         serialNo: l.product.hasSerial && !l.unitId && !match ? typed ?? "" : undefined,
         qty: l.qty,
         rate: ev.lineRates[i]!,
+        // Every goods line sends its warranty, so the bill prints exactly what was shown.
+        ...(l.product.isService
+          ? {}
+          : { warrantyFreeMonths: lineWarranty(l)!.free, warrantyProrataMonths: lineWarranty(l)!.prorata }),
       };
     }),
     scrap: draft.scrap.map((s, i) =>

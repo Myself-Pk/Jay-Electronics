@@ -19,6 +19,9 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 ## Switched off for now (owner's choice, Nov 2026)
 - `src/lib/features.ts`: `purchasePrices: false` hides purchase price, distributor rates, purchase totals and all profit figures; `serialNumbers: false` makes every product count-based (no serial switch, no scanning). The database still supports both — flip the switch to bring them back.
 - Warranty no longer depends on serials: product warranty months print on every bill line (`bill_items_warranty_text` trigger in `*_warranty_without_serials.sql`), and "Add old sale" accepts any non-service product.
+- Warranty can be changed per bill line on New Bill (`lineWarranty()` in `billDraft.ts`); the app sends `warranty_free_months` / `warranty_prorata_months` per item. `save_bill` is a thin wrapper (`*_bill_warranty_choice.sql`) that checks them, stores them for the transaction (`je.bill_warranty`) and calls the original, renamed `save_bill_core` (not callable by the app). Edit billing rules in `save_bill_core`.
+- Product warranty months were filled with best guesses from online listings on 24 Nov 2026 (only Luminous "72 Months" is confirmed); correct them in Stock as real labels are checked.
+- Bills are sent as a PDF (`src/lib/billPdf.ts`: html-to-image + jsPDF, lazy-loaded) through the share menu; free WhatsApp links can't carry files.
 - The real stock list (107 products, 190 pieces, selling prices only) was loaded on 24 Nov 2026 after wiping all test data; a backup of the test data is in `backups/2026-11-24_2107`.
 
 ## Products and stock

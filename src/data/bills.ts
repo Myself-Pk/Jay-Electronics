@@ -19,6 +19,9 @@ function toPayload(input: SaveBillInput) {
       serial_no: i.serialNo || undefined,
       qty: i.qty,
       rate: fromPaise(i.rate),
+      ...(i.warrantyFreeMonths !== undefined || i.warrantyProrataMonths !== undefined
+        ? { warranty_free_months: i.warrantyFreeMonths ?? 0, warranty_prorata_months: i.warrantyProrataMonths ?? 0 }
+        : {}),
     })),
     scrap: input.scrap.map((s) =>
       s.fixedAmount !== undefined

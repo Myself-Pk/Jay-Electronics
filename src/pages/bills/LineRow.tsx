@@ -6,7 +6,7 @@ import { productLabel, type CustomerType } from "@/data/types";
 import { warrantyText } from "@/lib/billMath";
 import { formatDate } from "@/lib/dates";
 import { formatRupees, type Paise } from "@/lib/money";
-import type { DraftLine } from "./billDraft";
+import { lineWarranty, type DraftLine } from "./billDraft";
 
 const TYPED = "__typed";
 
@@ -22,7 +22,9 @@ interface Props {
 export function LineRow({ line, rate, customerType, onChange, onRemove }: Props) {
   const { t, i18n } = useTranslation();
   const p = line.product;
-  const warranty = p.hasSerial ? warrantyText(p.warrantyFreeMonths, p.warrantyProrataMonths) : "";
+  const w = lineWarranty(line);
+  const warranty = w ? warrantyText(w.free, w.prorata) : "";
+  const editingWarranty = line.warrantyFree !== undefined || line.warrantyProrata !== undefined;
   const aboveMrp = rate !== null && p.mrp !== null && rate > p.mrp;
   const usingDealerPrice = customerType === "dealer" && p.dealerPrice !== null && !line.priceEdited;
 
@@ -33,13 +35,57 @@ export function LineRow({ line, rate, customerType, onChange, onRemove }: Props)
           <p className="text-[16px] font-semibold text-slate-900">{productLabel(p)}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-slate-500">
             <span>{p.category}</span>
-            {warranty ? (
+            {!p.isService ? (
               <span className="inline-flex items-center gap-1">
-                <ShieldCheck className="size-3.5 text-emerald-600" />
-                {warranty}
+                <ShieldCheck className={warranty ? "size-3.5 text-emerald-600" : "size-3.5 text-slate-400"} />
+                {warranty || t("newBill.noWarranty")}
+                {!editingWarranty ? (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...line, warrantyFree: String(w?.free ?? 0), warrantyProrata: String(w?.prorata ?? 0) })}
+                    className="ml-1 rounded-lg px-2 py-1.5 font-semibold text-brand-800 hover:bg-brand-50"
+                  >
+                    {warranty ? t("newBill.changeWarranty") : t("newBill.addWarranty")}
+                  </button>
+                ) : null}
               </span>
             ) : null}
           </p>
+          {editingWarranty ? (
+            <div className="mt-2 flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3">
+              <div className="w-28">
+                <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor={`wfree-${line.key}`}>
+                  {t("newBill.warrantyFree")}
+                </label>
+                <Input
+                  id={`wfree-${line.key}`}
+                  inputMode="numeric"
+                  value={line.warrantyFree ?? ""}
+                  onChange={(e) => onChange({ ...line, warrantyFree: e.target.value.replace(/\D/g, "").slice(0, 3) })}
+                  invalid={w === null}
+                />
+              </div>
+              <div className="w-28">
+                <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor={`wpro-${line.key}`}>
+                  {t("newBill.warrantyProrata")}
+                </label>
+                <Input
+                  id={`wpro-${line.key}`}
+                  inputMode="numeric"
+                  value={line.warrantyProrata ?? ""}
+                  onChange={(e) => onChange({ ...line, warrantyProrata: e.target.value.replace(/\D/g, "").slice(0, 3) })}
+                  invalid={w === null}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => onChange({ ...line, warrantyFree: undefined, warrantyProrata: undefined })}
+                className="min-h-11 rounded-lg px-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                {t("newBill.productWarranty", { warranty: warrantyText(p.warrantyFreeMonths, p.warrantyProrataMonths) || t("newBill.noWarranty") })}
+              </button>
+            </div>
+          ) : null}
         </div>
         <button
           type="button"
