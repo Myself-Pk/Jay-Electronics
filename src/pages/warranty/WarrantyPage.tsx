@@ -16,6 +16,7 @@ import { formatDate, todayISO } from "@/lib/dates";
 import { useAsync } from "@/lib/useAsync";
 import { isOverdueRegistration } from "@/lib/warranty";
 import { formatPhone } from "../bills/CustomerSection";
+import { MoveUnitDialog } from "./MoveUnitDialog";
 import { OldSaleDialog } from "./OldSaleDialog";
 import { UnitCard } from "./UnitCard";
 
@@ -33,6 +34,7 @@ export function WarrantyPage() {
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
   const [oldOpen, setOldOpen] = useState(false);
+  const [moving, setMoving] = useState<WarrantyUnit | null>(null);
   const today = todayISO();
 
   // Search a moment after typing stops (a barcode scanner's Enter searches at once).
@@ -123,7 +125,7 @@ export function WarrantyPage() {
             <p className="text-sm font-semibold text-slate-500">{t("warranty.results", { count: list.length })}</p>
             <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {list.map((u) => (
-                <UnitCard key={u.unitId} unit={u} today={today} onMark={openMark} />
+                <UnitCard key={u.unitId} unit={u} today={today} onMark={openMark} onMove={setMoving} />
               ))}
             </ul>
           </section>
@@ -190,6 +192,8 @@ export function WarrantyPage() {
           </Field>
         </div>
       </Dialog>
+
+      <MoveUnitDialog unit={moving} onClose={() => setMoving(null)} onMoved={reload} />
 
       <OldSaleDialog
         open={oldOpen}

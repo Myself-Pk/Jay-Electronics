@@ -834,6 +834,36 @@ await check("a bill can't sell more than is in stock (also across two lines of t
   await expectBillError(STAFF, () => sell([1]), "not_enough_stock");
 });
 
+await check("serials: a product with no stock can switch to serials; a piece in the shop can move to the right product", async () => {
+  const cat = (await db.query("select id from public.categories where name = 'Inverter battery'")).rows[0].id;
+  const a = (await db.query("insert into public.products (category_id, model, retail_price, has_serial) values ($1, 'Move test A', 100, false) returning id", [cat])).rows[0].id;
+  const b = (await db.query("insert into public.products (category_id, model, retail_price, has_serial) values ($1, 'Move test B', 100, true) returning id", [cat])).rows[0].id;
+  // Counted stock brought back to 0 (as on 27 Nov 2026): serial numbers may now be switched on.
+  await db.query("insert into public.stock_history (product_id, change, reason) values ($1, 2, 'opening_stock'), ($1, -2, 'changed_by_owner')", [a]);
+  await call(OWNER, "save_product", { id: a, category: "Inverter battery", model: "Move test A", retail_price: "100", has_serial: true });
+  if (!(await db.query("select has_serial from public.products where id = $1", [a])).rows[0].has_serial) throw new Error("serials not switched on");
+
+  await call(STAFF, "receive_stock", { kind: "opening_stock", items: [{ product_id: a, rate: 0, serials: ["mv-001"] }] });
+  const unit = (await db.query("select id from public.units where serial_no = 'MV-001'")).rows[0].id;
+  await expectBillError(OWNER, () => call(OWNER, "save_product", { id: a, category: "Inverter battery", model: "Move test A", retail_price: "100", has_serial: false }), "cannot_change_serial");
+  await expectBillError(STAFF, () => call(STAFF, "move_unit", { unit_id: unit, product_id: ids.trolley }), "not_serial_product");
+  await call(STAFF, "move_unit", { unit_id: unit, product_id: b });
+  if ((await stockOf(a)) !== 0 || (await stockOf(b)) !== 1) throw new Error(`stock after move: ${await stockOf(a)} / ${await stockOf(b)}`);
+  const moved = (await db.query("select product_id from public.units where id = $1", [unit])).rows[0].product_id;
+  const rows = (await db.query("select count(*)::int n from public.stock_history where unit_id = $1 and reason = 'product_changed'", [unit])).rows[0].n;
+  if (moved !== b || rows !== 2) throw new Error(JSON.stringify({ moved, rows }));
+
+  await saveBill(STAFF, { customer: { phone: "9876500001" }, items: [{ product_id: b, serial_no: "mv-001", qty: 1, rate: 100 }], payments: [{ mode: "cash", amount: 100, charges: 0 }] });
+  await expectBillError(STAFF, () => call(STAFF, "move_unit", { unit_id: unit, product_id: a }), "unit_not_in_stock");
+  let blocked = false;
+  try {
+    await call(null, "move_unit", { unit_id: unit, product_id: a }, "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("move_unit is callable without logging in");
+});
+
 await db.close();
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed.`);

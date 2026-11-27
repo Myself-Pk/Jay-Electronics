@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { BadgeCheck, ShieldAlert, ShieldCheck, ShieldOff, ShieldQuestion, Store } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, ShieldAlert, ShieldCheck, ShieldOff, ShieldQuestion, Store } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -25,7 +25,18 @@ export function leftText(t: T, today: string, until: string): string | null {
 }
 
 /** One battery: the warranty answer in big letters, then who bought it and the brand registration. */
-export function UnitCard({ unit, today, onMark }: { unit: WarrantyUnit; today: string; onMark: (unit: WarrantyUnit) => void }) {
+export function UnitCard({
+  unit,
+  today,
+  onMark,
+  onMove,
+}: {
+  unit: WarrantyUnit;
+  today: string;
+  onMark: (unit: WarrantyUnit) => void;
+  /** Saved under the wrong product? Only for pieces still in the shop. */
+  onMove?: (unit: WarrantyUnit) => void;
+}) {
   const { t, i18n } = useTranslation();
   const date = (iso: string) => formatDate(iso, i18n.language);
   const sold = unit.status === "sold";
@@ -102,6 +113,15 @@ export function UnitCard({ unit, today, onMark }: { unit: WarrantyUnit; today: s
             )}
             {unit.customerPhone ? <span className="text-slate-500"> · {formatPhone(unit.customerPhone)}</span> : null}
           </p>
+        ) : null}
+
+        {unit.status === "in_stock" && onMove ? (
+          <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <p className="min-w-0 flex-1 text-sm text-slate-500">{t("warranty.wrongProduct")}</p>
+            <Button size="sm" variant="secondary" icon={ArrowRightLeft} onClick={() => onMove(unit)}>
+              {t("warranty.changeProduct")}
+            </Button>
+          </div>
         ) : null}
 
         {sold && unit.needsRegistration ? (

@@ -58,14 +58,28 @@ export function previewSaveProduct(input: ProductInput, role: Role): string {
   } else {
     const existing = db.products.find((p) => p.id === id);
     if (!existing) throw new BillError("product_not_found");
-    const hasStockHistory = db.units.some((u) => u.productId === id) || (db.counts[id] ?? 0) !== 0;
-    if (existing.hasSerial !== hasSerial && hasStockHistory) throw new BillError("cannot_change_serial", { product: label });
+    // Serial numbers can be switched on/off only while the product has no stock (same as the database).
+    const hasStock = db.units.some((u) => u.productId === id && u.status === "in_stock") || (db.counts[id] ?? 0) !== 0;
+    if (existing.hasSerial !== hasSerial && hasStock) throw new BillError("cannot_change_serial", { product: label });
     Object.assign(existing, fields);
     if (input.active === false) db.products.splice(db.products.indexOf(existing), 1);
   }
   if (input.purchasePrice !== undefined && input.purchasePrice !== null) db.costs[id] = input.purchasePrice;
   persistPreview();
   return id;
+}
+
+/** Same rules as move_unit: a piece still in the shop moves to another serial-numbered product. */
+export function previewMoveUnit(unitId: string, productId: string): void {
+  const db = previewDb();
+  const unit = db.units.find((u) => u.id === unitId);
+  if (!unit) throw new BillError("unit_not_found");
+  const product = db.products.find((p) => p.id === productId);
+  if (!product) throw new BillError("product_not_found");
+  if (product.isService || !product.hasSerial) throw new BillError("not_serial_product", { product: productLabel(product) });
+  if (unit.status !== "in_stock") throw new BillError("unit_not_in_stock", { serial: unit.serial });
+  unit.productId = product.id;
+  persistPreview();
 }
 
 export function previewReceiveStock(input: StockEntryInput): string {

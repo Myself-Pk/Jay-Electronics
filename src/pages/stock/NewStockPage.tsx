@@ -18,7 +18,7 @@ import { formatDate, todayISO } from "@/lib/dates";
 import { formatRupees } from "@/lib/money";
 import { useAsync } from "@/lib/useAsync";
 import { newKey } from "../bills/billDraft";
-import { ItemSearch, type PickOptions } from "../bills/ItemSearch";
+import { ItemSearch, type CodeAnswer, type PickOptions } from "../bills/ItemSearch";
 import { emptyStockDraft, evaluateStock, splitSerials, toStockInput, type StockDraft, type StockLine } from "./stockDraft";
 
 const DRAFT_KEY = "je-stock-draft";
@@ -211,6 +211,42 @@ export function NewStockPage() {
     }
   };
 
+  /** Why a scanned serial can't go on this entry (already scanned, or already in the system). */
+  const serialProblem = async (serial: string): Promise<string | null> => {
+    if (draft.lines.some((l) => l.serials.includes(serial))) return t("newStock.serialTwice", { serial });
+    const known = await lookupSerial(serial).catch(() => null);
+    if (known) return t("newStock.serialKnown", { serial, status: t(`newStock.status.${known.status}`) });
+    return null;
+  };
+
+  /** A scanned code that isn't a product barcode: a serial already in the system is refused. */
+  const onCode = async (text: string): Promise<CodeAnswer> => {
+    if (!FEATURES.serialNumbers || /\s/.test(text) || text.trim().length < 4) return false;
+    const serial = text.trim().toUpperCase();
+    if (draft.lines.some((l) => l.serials.includes(serial))) {
+      const message = t("newStock.serialTwice", { serial });
+      toast(message, "error");
+      return { refused: message };
+    }
+    const known = await lookupSerial(serial).catch(() => null);
+    if (!known) return false; // new code: ItemSearch asks which product it is
+    const message = t("newStock.serialKnown", { serial, status: t(`newStock.status.${known.status}`) });
+    toast(message, "error");
+    return { refused: message };
+  };
+
+  /** A new code picked for a battery / inverter: it's this piece's serial number. */
+  const onNewSerial = async (product: CatalogProduct, code: string): Promise<string | void> => {
+    const serial = code.trim().toUpperCase();
+    const problem = await serialProblem(serial);
+    if (problem) return problem;
+    setDraft((d) => {
+      const at = d.lines.findIndex((l) => l.product.id === product.id);
+      if (at >= 0) return { ...d, lines: d.lines.map((l, i) => (i === at ? { ...l, serials: [...l.serials, serial] } : l)) };
+      return { ...d, lines: [...d.lines, { key: newKey(), product, serials: [serial], qtyText: "", rateText: "", gstText: "" }] };
+    });
+  };
+
   const startAgain = async () => {
     if (!(await confirm({ title: t("newStock.startAgainConfirm"), confirmLabel: t("newBill.yesClear"), tone: "danger" }))) return;
     setDraft(emptyStockDraft(today));
@@ -294,7 +330,8 @@ export function NewStockPage() {
               <ItemSearch
                 catalog={stockable}
                 onPick={addProduct}
-                onEnterText={async () => false}
+                onEnterText={onCode}
+                onNewSerial={FEATURES.serialNumbers ? onNewSerial : undefined}
                 placeholder={t("newStock.searchPlaceholder")}
               />
             </div>

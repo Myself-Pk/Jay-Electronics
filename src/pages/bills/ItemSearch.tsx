@@ -14,6 +14,12 @@ import { productLabel, type CatalogProduct } from "@/data/types";
 import { cn } from "@/lib/cn";
 import { formatRupees } from "@/lib/money";
 
+/**
+ * What a screen did with a scanned or typed code: false = not a code it knows (the person is asked
+ * which product it is), else the product that was added or why nothing was added.
+ */
+export type CodeAnswer = false | { added: string } | { refused: string };
+
 export interface PickOptions {
   /** True when the product came from a scanned barcode / QR code (scanning again adds one more). */
   scanned?: boolean;
@@ -23,8 +29,14 @@ interface Props {
   catalog: CatalogProduct[];
   /** Add the product. Return a message instead when it can't be added (e.g. none left in stock). */
   onPick: (product: CatalogProduct, options?: PickOptions) => string | void;
-  /** Called on Enter before picking a result; return true if it was handled (e.g. a scanned serial). */
-  onEnterText: (text: string) => Promise<boolean>;
+  /** Called for a scanned code (or Enter) that isn't a product barcode, e.g. a known serial number. */
+  onEnterText: (text: string) => Promise<CodeAnswer>;
+  /**
+   * A new code picked for a serial-numbered product: keep it as that piece's serial number.
+   * Return why it couldn't be added, if it couldn't. Without this, every new code is linked to the
+   * product as its barcode.
+   */
+  onNewSerial?: (product: CatalogProduct, code: string) => Promise<string | void>;
   /** Defaults to the New Bill wording ("Scan barcode or type…"). */
   placeholder?: string;
 }
@@ -38,7 +50,7 @@ const looksLikeCode = (text: string) => !/\s/.test(text) && text.length >= 6 && 
  * - A scanned code (scanner or camera) that was linked to a product adds that product.
  * - A new code asks once "Which product is this?" and remembers it.
  */
-export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props) {
+export function ItemSearch({ catalog, onPick, onEnterText, onNewSerial, placeholder }: Props) {
   const { t } = useTranslation();
   const toast = useToast();
   const confirm = useConfirm();
@@ -48,6 +60,10 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [newCode, setNewCode] = useState<{ code: string; fromCamera: boolean } | null>(null);
+  /** The product picked for the last new code — offered first next time (boxes come in batches). */
+  const [lastChosen, setLastChosen] = useState<CatalogProduct | null>(null);
+  const [cameraSession, setCameraSession] = useState(0);
+  const [later, setLater] = useState<{ id: number; outcome: Exclude<ScanOutcome, { kind: "stop" }> } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => searchCatalog(catalog, query), [catalog, query]);
@@ -61,15 +77,16 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
   };
 
   /** A code from the camera or a scanner: a linked product, else the screen's own check (serials). */
-  const handleCode = async (code: string): Promise<{ result: "added" | "refused" | "handled" | "unknown"; label: string }> => {
+  const handleCode = async (code: string): Promise<{ result: "added" | "refused" | "unknown"; label: string }> => {
     const productId = await findProductByBarcode(code).catch(() => null);
     const product = productId ? catalog.find((p) => p.id === productId) : undefined;
     if (product) {
       const refused = pick(product, { scanned: true });
       return refused ? { result: "refused", label: refused } : { result: "added", label: productLabel(product) };
     }
-    if (await onEnterText(code)) return { result: "handled", label: code };
-    return { result: "unknown", label: code };
+    const answer = await onEnterText(code);
+    if (answer === false) return { result: "unknown", label: code };
+    return "refused" in answer ? { result: "refused", label: answer.refused } : { result: "added", label: answer.added };
   };
 
   const onCameraCode = async (code: string): Promise<ScanOutcome> => {
@@ -124,6 +141,24 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
   const linkAndPick = async (product: CatalogProduct) => {
     if (!newCode) return;
     const { code, fromCamera } = newCode;
+    setLastChosen(product);
+    if (product.hasSerial && onNewSerial) {
+      const refused = await onNewSerial(product, code);
+      setNewCode(null);
+      const outcome: Exclude<ScanOutcome, { kind: "stop" }> = refused
+        ? { kind: "refused", message: refused }
+        : { kind: "added", label: t("scan.serialOf", { serial: code.toUpperCase(), product: productLabel(product) }) };
+      if (fromCamera) {
+        setLater({ id: Date.now(), outcome });
+        setCameraOpen(true);
+      } else if (refused) {
+        toast(refused, "error");
+      } else {
+        toast(t("scan.serialSaved", { serial: code.toUpperCase(), product: productLabel(product) }));
+        inputRef.current?.focus();
+      }
+      return;
+    }
     try {
       try {
         await linkBarcode(code, product.id);
@@ -173,7 +208,10 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
       </label>
       <button
         type="button"
-        onClick={() => setCameraOpen(true)}
+        onClick={() => {
+          setCameraSession((n) => n + 1);
+          setCameraOpen(true);
+        }}
         aria-label={t("scan.button")}
         title={t("scan.button")}
         className="absolute top-1/2 right-1.5 flex size-11 -translate-y-1/2 items-center justify-center rounded-xl bg-brand-700 text-white shadow-sm hover:bg-brand-800"
@@ -222,10 +260,12 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
         </div>
       ) : null}
 
-      <CameraScanner open={cameraOpen} onClose={() => setCameraOpen(false)} onCode={onCameraCode} />
+      <CameraScanner open={cameraOpen} onClose={() => setCameraOpen(false)} onCode={onCameraCode} session={cameraSession} later={later} />
       <LinkCodeDialog
         code={newCode?.code ?? null}
         catalog={catalog}
+        serials={Boolean(onNewSerial)}
+        suggest={lastChosen}
         onCancel={() => {
           const fromCamera = newCode?.fromCamera;
           setNewCode(null);
@@ -241,11 +281,17 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
 function LinkCodeDialog({
   code,
   catalog,
+  serials,
+  suggest,
   onCancel,
   onChoose,
 }: {
   code: string | null;
   catalog: CatalogProduct[];
+  /** True where a new code on a battery / inverter is that piece's serial number. */
+  serials: boolean;
+  /** The product picked last time, offered as one tap. */
+  suggest: CatalogProduct | null;
   onCancel: () => void;
   onChoose: (product: CatalogProduct) => void;
 }) {
@@ -262,10 +308,26 @@ function LinkCodeDialog({
         onCancel();
       }}
       title={t("scan.linkTitle")}
-      description={t("scan.linkText")}
+      description={t(serials ? "scan.linkTextSerial" : "scan.linkText")}
     >
       <div className="flex flex-col gap-3 pb-2">
         <p className="rounded-xl bg-slate-100 px-4 py-2.5 font-mono text-[15px] font-semibold break-all text-slate-800">{code}</p>
+        {suggest && goods.some((p) => p.id === suggest.id) ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQ("");
+              onChoose(suggest);
+            }}
+            className="flex min-h-14 w-full items-center gap-3 rounded-xl border-2 border-brand-600 bg-brand-50 px-4 py-2.5 text-left hover:bg-brand-100"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-semibold tracking-wide text-brand-800 uppercase">{t("scan.sameAsBefore")}</span>
+              <span className="block truncate text-[16px] font-semibold text-slate-900">{productLabel(suggest)}</span>
+            </span>
+            {serials && suggest.hasSerial ? <Badge tone="green">{t("scan.asSerial")}</Badge> : null}
+          </button>
+        ) : null}
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("scan.linkSearch")} data-autofocus autoComplete="off" />
         {matches.length > 0 ? (
           <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
@@ -283,6 +345,7 @@ function LinkCodeDialog({
                     <span className="block truncate text-[15px] font-semibold text-slate-900">{productLabel(p)}</span>
                     <span className="block text-sm text-slate-500">{p.category}</span>
                   </span>
+                  {serials && p.hasSerial ? <Badge tone="green">{t("scan.asSerial")}</Badge> : null}
                   <span className="text-sm font-semibold text-slate-700 tabular-nums">{formatRupees(p.retailPrice)}</span>
                 </button>
               </li>

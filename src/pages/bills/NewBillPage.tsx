@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { PackageSearch, ReceiptText, Truck, X } from "lucide-react";
+import { PackageSearch, ReceiptText, Truck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/auth/SessionProvider";
-import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { useConfirm } from "@/components/ui/Confirm";
 import { useToast } from "@/components/ui/Toast";
 import { saveBill } from "@/data/bills";
-import { listCatalog, listInStockUnits, lookupSerial, searchCatalog } from "@/data/catalog";
+import { listCatalog, listInStockUnits, lookupSerial } from "@/data/catalog";
 import { asBillError } from "@/data/errors";
 import { getSettings } from "@/data/settings";
 import { productLabel, type CatalogProduct } from "@/data/types";
@@ -32,7 +31,7 @@ import { CHARGES_GST_RATE, gstInside } from "@/lib/billMath";
 import { todayISO } from "@/lib/dates";
 import { FEATURES } from "@/lib/features";
 import { CustomerSection, formatPhone } from "./CustomerSection";
-import { ItemSearch } from "./ItemSearch";
+import { ItemSearch, type CodeAnswer } from "./ItemSearch";
 import { LineRow } from "./LineRow";
 import { PaymentSection } from "./PaymentSection";
 import { ScrapSection } from "./ScrapSection";
@@ -67,7 +66,6 @@ export function NewBillPage() {
   const catalogQ = useAsync(listCatalog);
   const settingsQ = useAsync(getSettings);
   const [draft, setDraft] = useState<BillDraft>(() => loadDraft() ?? emptyDraft());
-  const [pendingSerial, setPendingSerial] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const restoredNotice = useRef(false);
 
@@ -186,45 +184,43 @@ export function NewBillPage() {
       toast(refused, "error");
       return refused;
     }
-    if (pendingSerial && product.hasSerial) {
-      void addProduct(product, pendingSerial);
-      setPendingSerial(null);
-    } else {
-      void addProduct(product);
-    }
+    void addProduct(product);
   };
 
-  /** Enter in the search box: if it looks like a serial number, look it up. */
-  const onEnterText = async (text: string): Promise<boolean> => {
+  /** A new code picked for a battery / inverter: sell that piece (it's added to stock as it's billed). */
+  const onNewSerial = async (product: CatalogProduct, code: string): Promise<string | void> => {
+    const serial = code.trim().toUpperCase();
+    if (draft.lines.some((l) => lineSerial(l) === serial)) {
+      const message = t("billErrors.duplicate_serial", { serial });
+      toast(message, "error");
+      return message;
+    }
+    await addProduct(product, serial);
+  };
+
+  /** A scanned code / Enter in the search box: if it's a known serial number, add that piece. */
+  const onEnterText = async (text: string): Promise<CodeAnswer> => {
     // With serial numbers switched off, a scanned code is a product barcode (handled by ItemSearch).
     if (!FEATURES.serialNumbers) return false;
     if (/\s/.test(text) || !/\d/.test(text) || text.length < 4) return false;
     const found = await lookupSerial(text).catch(() => null);
-    if (!found) {
-      if (searchCatalog(catalog, text).length > 0) return false;
-      setPendingSerial(text.toUpperCase());
-      return true;
-    }
+    if (!found) return false; // a new code: ItemSearch asks which product it is
+    const refuse = (message: string): CodeAnswer => {
+      toast(message, "error");
+      return { refused: message };
+    };
     if (found.status === "sold") {
-      toast(
-        t("billErrors.serial_sold", { serial: found.serial, bill: found.billNumber ?? "—", customer: found.customerName ?? "—" }),
-        "error",
-      );
-      return true;
+      return refuse(t("billErrors.serial_sold", { serial: found.serial, bill: found.billNumber ?? "—", customer: found.customerName ?? "—" }));
     }
-    if (found.status === "other") {
-      toast(t("billErrors.serial_not_available", { serial: found.serial }), "error");
-      return true;
-    }
+    if (found.status === "other") return refuse(t("billErrors.serial_not_available", { serial: found.serial }));
     if (draft.lines.some((l) => lineSerial(l) === found.serial.toUpperCase() || l.unitId === found.unitId)) {
-      toast(t("billErrors.duplicate_serial", { serial: found.serial }), "error");
-      return true;
+      return refuse(t("billErrors.duplicate_serial", { serial: found.serial }));
     }
     const product = catalog.find((p) => p.id === found.productId);
     if (!product) return false;
     await addProduct(product, found.serial);
     toast(t("newBill.added", { product: productLabel(product) }), "info");
-    return true;
+    return { added: t("scan.serialOf", { serial: found.serial, product: productLabel(product) }) };
   };
 
   const delivery = catalog.find((p) => p.isService && /^delivery/i.test(p.model));
@@ -244,7 +240,6 @@ export function NewBillPage() {
   const startAgain = async () => {
     if (!(await confirm({ title: t("newBill.startAgainConfirm"), confirmLabel: t("newBill.yesClear"), tone: "danger" }))) return;
     setDraft(emptyDraft());
-    setPendingSerial(null);
   };
 
   const save = async (then: "print" | "whatsapp") => {
@@ -337,15 +332,12 @@ export function NewBillPage() {
           <Card>
             <CardHeader icon={PackageSearch} title={t("newBill.items")} />
             <div className="p-4 sm:px-6">
-              <ItemSearch catalog={catalog} onPick={onPick} onEnterText={onEnterText} />
-              {pendingSerial ? (
-                <div className="mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[15px] text-amber-900">
-                  <span className="flex-1">{t("newBill.serialUnknown", { serial: pendingSerial })}</span>
-                  <Button variant="ghost" size="sm" icon={X} onClick={() => setPendingSerial(null)}>
-                    {t("newBill.cancelSerial")}
-                  </Button>
-                </div>
-              ) : null}
+              <ItemSearch
+                catalog={catalog}
+                onPick={onPick}
+                onEnterText={onEnterText}
+                onNewSerial={FEATURES.serialNumbers ? onNewSerial : undefined}
+              />
             </div>
             {draft.lines.length === 0 ? (
               <p className="border-t border-slate-100 px-6 py-8 text-center text-[15px] text-slate-500">{t("newBill.noItems")}</p>

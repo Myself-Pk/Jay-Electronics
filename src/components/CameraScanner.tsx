@@ -12,6 +12,10 @@ interface Props {
   onClose: () => void;
   /** Called for each new code. "stop" closes the camera (e.g. to ask which product it is). */
   onCode: (code: string) => Promise<ScanOutcome>;
+  /** Changes when the person starts a new round of scanning; the count starts again from 0. */
+  session?: number;
+  /** What happened to a code handled while the camera was closed (shown when it reopens). */
+  later?: { id: number; outcome: Exclude<ScanOutcome, { kind: "stop" }> } | null;
 }
 
 type CameraState = "starting" | "on" | "denied" | "missing" | "failed";
@@ -20,7 +24,7 @@ type CameraState = "starting" | "on" | "denied" | "missing" | "failed";
  * Full-screen phone camera that reads barcodes and QR codes, one after another, until "Done".
  * Uses the back camera; needs the site to be allowed to use the camera (asked once by the browser).
  */
-export function CameraScanner({ open, onClose, onCode }: Props) {
+export function CameraScanner({ open, onClose, onCode, session = 0, later = null }: Props) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCodeRef = useRef(onCode);
@@ -32,6 +36,8 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
   const [readingPhoto, setReadingPhoto] = useState(false);
   /** Amber note: a photo without a code, or an item that couldn't be added (e.g. out of stock). */
   const [notice, setNotice] = useState<string | null>(null);
+
+  const shownSession = useRef<number | null>(null);
 
   const showOutcome = (outcome: Exclude<ScanOutcome, { kind: "stop" }>) => {
     if (outcome.kind === "refused") {
@@ -50,10 +56,13 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
     let stopped = false;
     const fresh = makeRepeatGuard();
     setState("starting");
-    setLast(null);
-    setCount(0);
     setReadingPhoto(false);
-    setNotice(null);
+    if (shownSession.current !== session) {
+      shownSession.current = session;
+      setLast(null);
+      setCount(0);
+      setNotice(null);
+    }
 
     const start = async () => {
       try {
@@ -106,7 +115,12 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
       window.clearTimeout(timer);
       stream?.getTracks().forEach((track) => track.stop());
     };
-  }, [open]);
+  }, [open, session]);
+
+  useEffect(() => {
+    if (later) showOutcome(later.outcome);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per new result
+  }, [later?.id]);
 
   if (!open) return null;
 

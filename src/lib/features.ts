@@ -4,10 +4,11 @@
  *
  * - purchasePrices: purchase price on products, rates on "New stock arrived", purchase totals,
  *   and every profit figure (Home, Reports).
- * - serialNumbers: products are counted by quantity; no serial scanning when stock arrives or
- *   when billing. (Old sales from the paper register can still record a serial for warranty.)
+ * - serialNumbers: batteries, inverters etc. are counted by serial number — each piece's
+ *   barcode / QR code is scanned when stock arrives and when it is sold. Switched back on
+ *   27 Nov 2026 (it was off 24–27 Nov); accessories stay counted by quantity.
  */
 export const FEATURES = {
   purchasePrices: false,
-  serialNumbers: false,
+  serialNumbers: true,
 } as const;

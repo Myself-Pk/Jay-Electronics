@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { asBillError } from "./errors";
 import { previewDb } from "./preview-billing";
 import { previewDelay } from "./preview-store";
-import { previewReceiveStock } from "./preview-stock";
+import { previewMoveUnit, previewReceiveStock } from "./preview-stock";
 import type { PurchaseSummary, StockEntryInput, Supplier } from "./types";
 
 export async function listSuppliers(): Promise<Supplier[]> {
@@ -36,6 +36,17 @@ export async function receiveStock(input: StockEntryInput): Promise<string> {
   });
   if (error) throw asBillError(error) ?? error;
   return data as string;
+}
+
+/** A piece in the shop was saved under the wrong product: move it (and its stock) to the right one. */
+export async function moveUnit(unitId: string, productId: string): Promise<void> {
+  if (!supabase) {
+    await previewDelay(250);
+    previewMoveUnit(unitId, productId);
+    return;
+  }
+  const { error } = await supabase.rpc("move_unit", { p: { unit_id: unitId, product_id: productId } });
+  if (error) throw asBillError(error) ?? error;
 }
 
 /** Recent stock entries with amounts. Owner only: the database shows staff nothing here. */
