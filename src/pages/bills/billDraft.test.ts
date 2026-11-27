@@ -107,14 +107,15 @@ describe("New Bill checks", () => {
     expect(ev.problems).toEqual([]);
   });
 
-  it("warns (but allows) selling more of a non-serial item than the stock shows", () => {
-    const d = draftWith({
-      lines: [line(trolley, { qty: 2 })],
-      payments: [{ key: "p", mode: "cash", amountText: "1600", chargesText: "", chargesEdited: false }],
-    });
-    const ev = evaluate(d, DEFAULT_SETTINGS, "staff");
-    expect(ev.problems).toEqual([]);
-    expect(ev.warnings.map((w) => w.key)).toEqual(["low_stock"]);
+  it("stops a bill that sells more of an item than is in stock", () => {
+    const pay = (amount: string) => [{ key: "p", mode: "cash" as const, amountText: amount, chargesText: "", chargesEdited: false }];
+    const tooMany = evaluate(draftWith({ lines: [line(trolley, { qty: 2 })], payments: pay("1600") }), DEFAULT_SETTINGS, "staff");
+    expect(tooMany.problems).toEqual([{ key: "not_enough_stock", params: { product: "Battery Trolley", count: 1 } }]);
+    // Split over two lines still counts together; reported once.
+    const split = evaluate(draftWith({ lines: [line(trolley), line(trolley)], payments: pay("1600") }), DEFAULT_SETTINGS, "staff");
+    expect(split.problems.map((p) => p.key)).toEqual(["not_enough_stock"]);
+    const ok = evaluate(draftWith({ lines: [line(trolley, { qty: 1 })], payments: pay("800") }), DEFAULT_SETTINGS, "staff");
+    expect(ok.problems).toEqual([]);
   });
 
   it("switching to Dealer re-prices lines that weren't changed by hand", () => {

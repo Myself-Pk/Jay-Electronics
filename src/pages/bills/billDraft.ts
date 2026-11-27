@@ -198,8 +198,9 @@ export function evaluate(draft: BillDraft, settings: ShopSettings, role: Role | 
       else serialsSeen.add(serial);
     } else if (!line.product.isService) {
       const sameProduct = draft.lines.filter((l) => l.product.id === line.product.id).reduce((n, l) => n + l.qty, 0);
-      if (sameProduct > line.product.inStock && !warnings.some((w) => w.params?.product === product)) {
-        warnings.push({ key: "low_stock", params: { product, count: line.product.inStock } });
+      // Can't sell more than the shop has (the database refuses it too).
+      if (sameProduct > line.product.inStock && !problems.some((p) => p.key === "not_enough_stock" && p.params?.product === product)) {
+        problems.push({ key: "not_enough_stock", params: { product, count: Math.max(line.product.inStock, 0) } });
       }
     }
   });

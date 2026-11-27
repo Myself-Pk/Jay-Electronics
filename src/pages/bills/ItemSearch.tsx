@@ -21,7 +21,8 @@ export interface PickOptions {
 
 interface Props {
   catalog: CatalogProduct[];
-  onPick: (product: CatalogProduct, options?: PickOptions) => void;
+  /** Add the product. Return a message instead when it can't be added (e.g. none left in stock). */
+  onPick: (product: CatalogProduct, options?: PickOptions) => string | void;
   /** Called on Enter before picking a result; return true if it was handled (e.g. a scanned serial). */
   onEnterText: (text: string) => Promise<boolean>;
   /** Defaults to the New Bill wording ("Scan barcode or type…"). */
@@ -51,20 +52,21 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
 
   const results = useMemo(() => searchCatalog(catalog, query), [catalog, query]);
 
-  const pick = (product: CatalogProduct, options?: PickOptions) => {
-    onPick(product, options);
+  const pick = (product: CatalogProduct, options?: PickOptions): string | void => {
+    const refused = onPick(product, options);
     setQuery("");
     setHighlight(0);
     if (!cameraOpen) inputRef.current?.focus();
+    return refused;
   };
 
   /** A code from the camera or a scanner: a linked product, else the screen's own check (serials). */
-  const handleCode = async (code: string): Promise<{ result: "added" | "handled" | "unknown"; label: string }> => {
+  const handleCode = async (code: string): Promise<{ result: "added" | "refused" | "handled" | "unknown"; label: string }> => {
     const productId = await findProductByBarcode(code).catch(() => null);
     const product = productId ? catalog.find((p) => p.id === productId) : undefined;
     if (product) {
-      pick(product, { scanned: true });
-      return { result: "added", label: productLabel(product) };
+      const refused = pick(product, { scanned: true });
+      return refused ? { result: "refused", label: refused } : { result: "added", label: productLabel(product) };
     }
     if (await onEnterText(code)) return { result: "handled", label: code };
     return { result: "unknown", label: code };
@@ -78,6 +80,7 @@ export function ItemSearch({ catalog, onPick, onEnterText, placeholder }: Props)
       setNewCode({ code, fromCamera: true });
       return { kind: "stop" };
     }
+    if (result === "refused") return { kind: "refused", message: label };
     return { kind: "added", label };
   };
 

@@ -228,7 +228,7 @@ await db.exec(`
   insert into public.products (category_id, model, retail_price, has_serial)
     select id, 'Battery trolley', 800, false from public.categories where name = 'Accessories';
   insert into public.stock_history (product_id, change, reason)
-    select id, 5, 'opening_stock' from public.products where model = 'Battery trolley';
+    select id, 100, 'opening_stock' from public.products where model = 'Battery trolley';
 `);
 const ids = (
   await db.query(`select
@@ -817,6 +817,21 @@ await check("barcodes: link once, find again; moving a code needs a yes; staff c
   }
   const deleted = await as(OWNER, "delete from public.product_barcodes returning code").catch((e) => e);
   if (!(deleted instanceof Error) && deleted.rows.length > 0) throw new Error("barcodes could be deleted");
+});
+
+await check("a bill can't sell more than is in stock (also across two lines of the same item)", async () => {
+  const widget = (await db.query(
+    `insert into public.products (category_id, model, retail_price, has_serial)
+     select id, 'Stock test widget', 100, false from public.categories where name = 'Accessories' returning id`,
+  )).rows[0].id;
+  await db.query("insert into public.stock_history (product_id, change, reason) values ($1, 2, 'opening_stock')", [widget]);
+  const sell = (lines) => saveBill(STAFF, { items: lines.map((qty) => ({ product_id: widget, qty, rate: 100 })), payments: [{ mode: "cash", amount: 100 * lines.reduce((a, b) => a + b, 0) }] });
+  await expectBillError(STAFF, () => sell([3]), "not_enough_stock");
+  await expectBillError(STAFF, () => sell([1, 2]), "not_enough_stock");
+  if ((await stockOf(widget)) !== 2) throw new Error("a refused bill changed stock");
+  await sell([2]);
+  if ((await stockOf(widget)) !== 0) throw new Error("stock not 0 after selling the last 2");
+  await expectBillError(STAFF, () => sell([1]), "not_enough_stock");
 });
 
 await db.close();

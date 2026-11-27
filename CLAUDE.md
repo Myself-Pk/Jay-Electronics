@@ -27,6 +27,9 @@ Full product plan: `PLAN.md` (read it before starting a new feature; follow the 
 ## Products and stock
 - `save_product(jsonb)` (owner only) and `receive_stock(jsonb)` (anyone logged in) in `*_products_stock.sql`; Preview copies in `src/data/preview-stock.ts` — keep them in step.
 - Serial-numbered items get stock only by scanning serials (New stock arrived, or its "Opening stock" mode). Count-based items can also get opening stock when the product is added or imported.
+- **No overselling**: a bill can never sell more of a count-based item than is in stock. The database refuses it (`stock_history_never_negative` trigger in `*_no_overselling.sql`, raises `bill_error('not_enough_stock')`), Preview mirrors it in `preview-billing.ts`, and New Bill blocks it earlier (`stockRefusal()` in `NewBillPage.tsx`, + button disabled in `LineRow.tsx`, `not_enough_stock` problem in `billDraft.ts`).
+- **Barcodes / QR codes**: `product_barcodes` + `link_barcode()` (`*_barcodes_tax_free_delivery.sql`), `src/data/barcodes.ts`. One box (`ItemSearch.tsx`) takes typing, a USB scanner and the phone camera (`CameraScanner.tsx`, readers in `src/lib/scanner.ts`: native `BarcodeDetector`, else the self-hosted `barcode-detector` ponyfill). "Choose photo" reads a code from a gallery picture (`readCodesFromPhoto()`), also when the camera is blocked. A new code asks once which product it is.
+- Delivery & installation is tax-free (0% GST, no HSN) and prints with blank GST columns.
 - The stock-list import (`src/pages/stock/stockImport.ts`) reads `stock-list-template.csv` saved from Excel as CSV.
 - `npm run dev:demo` runs the app on port 5174 in Preview mode (sample data) even when `.env.local` has the real keys.
 

@@ -155,12 +155,17 @@ export function LineRow({ line, rate, customerType, onChange, onRemove }: Props)
               <button
                 type="button"
                 aria-label={t("newBill.more")}
+                disabled={line.qty >= p.inStock}
+                title={line.qty >= p.inStock ? t("newBill.onlyInStock", { product: productLabel(p), count: Math.max(p.inStock, 0) }) : undefined}
                 onClick={() => onChange({ ...line, qty: line.qty + 1 })}
-                className="flex size-11 items-center justify-center rounded-r-xl text-slate-600 hover:bg-slate-50"
+                className="flex size-11 items-center justify-center rounded-r-xl text-slate-600 hover:bg-slate-50 disabled:opacity-40"
               >
                 <Plus className="size-4" />
               </button>
             </div>
+            <span className={line.qty > p.inStock ? "mt-1 block text-xs font-semibold text-red-600" : "mt-1 block text-xs text-slate-500"}>
+              {t("newBill.inStock", { count: Math.max(p.inStock, 0) })}
+            </span>
           </div>
         ) : null}
 

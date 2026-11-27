@@ -117,9 +117,25 @@ export function NewBillPage() {
   };
   const setLines = (update: (lines: DraftLine[]) => DraftLine[]) => setDraft((d) => ({ ...d, lines: update(d.lines) }));
 
+  /** Why one more of this item can't go on the bill (none left in stock), or null if it can. */
+  const stockRefusal = (product: CatalogProduct): string | null => {
+    if (product.hasSerial || product.isService) return null;
+    const onBill = draft.lines.filter((l) => l.product.id === product.id).reduce((n, l) => n + l.qty, 0);
+    if (onBill < product.inStock) return null;
+    return product.inStock <= 0
+      ? t("newBill.outOfStockToast", { product: productLabel(product) })
+      : t("newBill.onlyInStock", { product: productLabel(product), count: product.inStock });
+  };
+
   /** Add a product. Batteries get the oldest serial in stock, or the serial that was scanned/typed. */
   const addProduct = async (product: CatalogProduct, typedSerial: string | null = null) => {
     if (!product.hasSerial) {
+      // Never more than the shop has: an out-of-stock item can't be added, nor one more than is left.
+      const refused = stockRefusal(product);
+      if (refused) {
+        toast(refused, "error");
+        return;
+      }
       setLines((lines) => {
         const existing = product.isService ? undefined : lines.find((l) => l.product.id === product.id);
         if (existing) return lines.map((l) => (l === existing ? { ...l, qty: l.qty + 1 } : l));
@@ -164,7 +180,12 @@ export function NewBillPage() {
     });
   };
 
-  const onPick = (product: CatalogProduct) => {
+  const onPick = (product: CatalogProduct): string | void => {
+    const refused = stockRefusal(product);
+    if (refused) {
+      toast(refused, "error");
+      return refused;
+    }
     if (pendingSerial && product.hasSerial) {
       void addProduct(product, pendingSerial);
       setPendingSerial(null);

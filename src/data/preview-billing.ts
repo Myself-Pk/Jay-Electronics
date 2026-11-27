@@ -118,6 +118,17 @@ export function previewSaveBill(
     return { item, product, label, unit, newSerial };
   });
 
+  // ----- Stock: never sell more than the shop has (same as the database) -----
+  const wanted = new Map<string, number>();
+  for (const { item, product } of resolved) {
+    if (!product.hasSerial && !product.isService) wanted.set(product.id, (wanted.get(product.id) ?? 0) + item.qty);
+  }
+  for (const [productId, qty] of wanted) {
+    const have = store.counts[productId] ?? 0;
+    const product = store.products.find((p) => p.id === productId)!;
+    if (qty > have) throw new BillError("not_enough_stock", { product: productLabel(product), count: Math.max(have, 0) });
+  }
+
   // ----- Money -----
   const scrapValues = input.scrap.map((sc) =>
     sc.fixedAmount !== undefined ? sc.fixedAmount : scrapByWeight(sc.weightCentiKg ?? 0, sc.ratePerKg ?? 0),

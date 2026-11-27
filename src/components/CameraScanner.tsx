@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { CameraOff, CircleCheck, X } from "lucide-react";
+import { CameraOff, CircleCheck, ImageUp, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
-import { getCodeReader, makeRepeatGuard, scanFeedback } from "@/lib/scanner";
+import { getCodeReader, makeRepeatGuard, readCodesFromPhoto, scanFeedback } from "@/lib/scanner";
 
 /** What the screen using the scanner did with a code. */
-export type ScanOutcome = { kind: "added"; label: string } | { kind: "stop" };
+export type ScanOutcome = { kind: "added"; label: string } | { kind: "refused"; message: string } | { kind: "stop" };
 
 interface Props {
   open: boolean;
@@ -28,6 +28,20 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
   const [state, setState] = useState<CameraState>("starting");
   const [last, setLast] = useState<string | null>(null);
   const [count, setCount] = useState(0);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [readingPhoto, setReadingPhoto] = useState(false);
+  /** Amber note: a photo without a code, or an item that couldn't be added (e.g. out of stock). */
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const showOutcome = (outcome: Exclude<ScanOutcome, { kind: "stop" }>) => {
+    if (outcome.kind === "refused") {
+      setNotice(outcome.message);
+      return;
+    }
+    setNotice(null);
+    setLast(outcome.label);
+    setCount((n) => n + 1);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +52,8 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
     setState("starting");
     setLast(null);
     setCount(0);
+    setReadingPhoto(false);
+    setNotice(null);
 
     const start = async () => {
       try {
@@ -66,8 +82,7 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
                 scanFeedback();
                 const outcome = await onCodeRef.current(code);
                 if (outcome.kind === "stop") return; // the screen closes the camera
-                setLast(outcome.label);
-                setCount((n) => n + 1);
+                showOutcome(outcome);
                 wait = 900; // a moment before the next code, so one box isn't counted twice
               }
             }
@@ -94,6 +109,29 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
   }, [open]);
 
   if (!open) return null;
+
+  /** A photo from the gallery: read its code and handle it like a camera scan. */
+  const onPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setReadingPhoto(true);
+    setNotice(null);
+    try {
+      const code = (await readCodesFromPhoto(file)).map((c) => c.trim()).find(Boolean);
+      if (!code) {
+        setNotice(t("scan.photoNone"));
+        return;
+      }
+      scanFeedback();
+      const outcome = await onCodeRef.current(code);
+      if (outcome.kind !== "stop") showOutcome(outcome);
+    } catch (err) {
+      console.warn("photo scan failed", err);
+      setNotice(t("scan.photoNone"));
+    } finally {
+      setReadingPhoto(false);
+      if (photoRef.current) photoRef.current.value = ""; // the same photo can be picked again
+    }
+  };
 
   const problem =
     state === "denied" ? t("scan.noPermission") : state === "missing" ? t("scan.noCamera") : state === "failed" ? t("scan.failed") : null;
@@ -133,9 +171,32 @@ export function CameraScanner({ open, onClose, onCode }: Props) {
         ) : (
           <p className="text-center text-[15px] text-white/80">{t("scan.hint")}</p>
         )}
-        <Button size="xl" onClick={onClose} className="w-full">
-          {t("scan.done")}
-        </Button>
+        {notice ? (
+          <p className="rounded-xl bg-amber-500/90 px-4 py-2.5 text-center text-[15px] font-semibold text-slate-950" role="alert">
+            {notice}
+          </p>
+        ) : null}
+        <input
+          ref={photoRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void onPhoto(e.target.files?.[0])}
+        />
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => photoRef.current?.click()}
+            disabled={readingPhoto}
+            className="flex h-16 flex-1 items-center justify-center gap-2 rounded-xl border border-white/40 text-[16px] font-semibold hover:bg-white/10 disabled:opacity-60"
+          >
+            <ImageUp className="size-5" />
+            {readingPhoto ? t("scan.photoReading") : t("scan.photo")}
+          </button>
+          <Button size="xl" onClick={onClose} className="flex-1">
+            {t("scan.done")}
+          </Button>
+        </div>
       </div>
     </div>
   );

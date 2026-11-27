@@ -13,12 +13,12 @@ export const SCAN_FORMATS = [
 ] as const;
 
 export interface CodeReader {
-  /** Codes visible in the current video frame (usually 0 or 1). */
-  read: (source: HTMLVideoElement) => Promise<string[]>;
+  /** Codes in a camera frame or a photo (usually 0 or 1). */
+  read: (source: ImageBitmapSource) => Promise<string[]>;
 }
 
 interface NativeDetector {
-  detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]>;
+  detect: (source: ImageBitmapSource) => Promise<{ rawValue: string }[]>;
 }
 interface NativeDetectorClass {
   new (options: { formats: string[] }): NativeDetector;
@@ -57,6 +57,29 @@ async function libraryReader(): Promise<CodeReader> {
 export function getCodeReader(): Promise<CodeReader> {
   reader ??= nativeReader().then((native) => native ?? libraryReader());
   return reader;
+}
+
+/**
+ * Codes in a photo from the gallery. A phone photo can be very large, so if nothing is found at
+ * full size it is tried again at a smaller size (some readers miss codes in huge images).
+ */
+export async function readCodesFromPhoto(file: Blob): Promise<string[]> {
+  const reader = await getCodeReader();
+  const bitmap = await createImageBitmap(file);
+  try {
+    const found = await reader.read(bitmap);
+    if (found.length > 0) return found;
+    const longest = Math.max(bitmap.width, bitmap.height);
+    if (longest <= 1600) return [];
+    const scale = 1600 / longest;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return await reader.read(canvas);
+  } finally {
+    bitmap.close();
+  }
 }
 
 /** A short beep and buzz so the person knows a code was read. */
