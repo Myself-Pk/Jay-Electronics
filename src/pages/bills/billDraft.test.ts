@@ -25,6 +25,7 @@ const battery: CatalogProduct = {
   lowStockLevel: 2,
   inStock: 2,
   hsn: "8507",
+  active: true,
 };
 const trolley: CatalogProduct = { ...battery, id: "p-trolley", brand: null, model: "Battery Trolley", capacity: "", mrp: null,
   retailPrice: 80_000, dealerPrice: null, minPrice: null, hasSerial: false, needsRegistration: false, inStock: 1 };

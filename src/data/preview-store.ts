@@ -47,7 +47,7 @@ export interface PreviewUnit {
   registeredAt: string | null;
 }
 
-export type PreviewProduct = Omit<CatalogProduct, "inStock">;
+export type PreviewProduct = Omit<CatalogProduct, "inStock" | "active"> & { active?: boolean };
 
 interface PreviewStore {
   /** True once the sample bills have been created. */

@@ -72,7 +72,7 @@ export function productToDraft(p: CatalogProduct, purchasePrice: Paise | null): 
     openingStock: "",
     hsn: p.hsn,
     gstRate: basisPointsToInput(p.gstRate),
-    active: true,
+    active: p.active,
   };
 }
 

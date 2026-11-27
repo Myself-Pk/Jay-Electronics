@@ -53,7 +53,7 @@ export function previewSaveProduct(input: ProductInput, role: Role): string {
   let id = input.id;
   if (!id) {
     id = `p-${crypto.randomUUID()}`;
-    db.products.push({ id, ...fields });
+    db.products.push({ id, ...fields, active: input.active ?? true });
     if ((input.openingStock ?? 0) > 0 && !hasSerial && !category.isService) db.counts[id] = input.openingStock!;
   } else {
     const existing = db.products.find((p) => p.id === id);
@@ -61,8 +61,8 @@ export function previewSaveProduct(input: ProductInput, role: Role): string {
     // Serial numbers can be switched on/off only while the product has no stock (same as the database).
     const hasStock = db.units.some((u) => u.productId === id && u.status === "in_stock") || (db.counts[id] ?? 0) !== 0;
     if (existing.hasSerial !== hasSerial && hasStock) throw new BillError("cannot_change_serial", { product: label });
-    Object.assign(existing, fields);
-    if (input.active === false) db.products.splice(db.products.indexOf(existing), 1);
+    // Hiding keeps the product (old bills and its serials still point at it); it can be switched back on.
+    Object.assign(existing, fields, { active: input.active ?? true });
   }
   if (input.purchasePrice !== undefined && input.purchasePrice !== null) db.costs[id] = input.purchasePrice;
   persistPreview();

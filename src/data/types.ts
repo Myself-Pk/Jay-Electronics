@@ -106,6 +106,8 @@ export interface CatalogProduct {
   lowStockLevel: number;
   inStock: number;
   hsn: string;
+  /** False = hidden: not sold any more, kept for old bills. Only the owner sees these (Stock → Hidden). */
+  active: boolean;
 }
 
 export interface Category {

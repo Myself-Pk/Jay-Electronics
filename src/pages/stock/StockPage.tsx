@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, FileSpreadsheet, Package, PackagePlus, Plus, Search } from "lucide-react";
+import { ChevronRight, EyeOff, FileSpreadsheet, Package, PackagePlus, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/auth/SessionProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { listCatalog, searchCatalog } from "@/data/catalog";
+import { listCatalog, listHiddenCatalog, searchCatalog } from "@/data/catalog";
 import { listBrandNames, listCategories } from "@/data/products";
 import { canSeeOwnerData, productLabel, type CatalogProduct } from "@/data/types";
 import { cn } from "@/lib/cn";
@@ -28,28 +28,34 @@ export function StockPage() {
   const { person } = useSession();
   const isOwner = canSeeOwnerData(person?.role);
   const catalog = useAsync(listCatalog);
+  const hidden = useAsync(listHiddenCatalog);
   const categories = useAsync(listCategories);
   const brands = useAsync(listBrandNames);
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("all");
   const [lowOnly, setLowOnly] = useState(false);
+  const [hiddenOnly, setHiddenOnly] = useState(false);
   const [open, setOpen] = useState<CatalogProduct | "new" | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const products = catalog.data ?? [];
+  const hiddenProducts = hidden.data ?? [];
+  const showHidden = isOwner && hiddenOnly;
+  const products = showHidden ? hiddenProducts : (catalog.data ?? []);
   const usedCategories = (categories.data ?? []).filter((c) => products.some((p) => p.categoryId === c.id));
   const shown = useMemo(() => {
     const base = query.trim() ? searchCatalog(products, query, Number.POSITIVE_INFINITY) : products;
     return base
       .filter((p) => categoryId === "all" || p.categoryId === categoryId)
-      .filter((p) => !lowOnly || isLow(p) || (!p.isService && p.inStock <= 0))
+      .filter((p) => showHidden || !lowOnly || isLow(p) || (!p.isService && p.inStock <= 0))
       .sort((a, b) => a.categoryOrder - b.categoryOrder || productLabel(a).localeCompare(productLabel(b)));
-  }, [products, query, categoryId, lowOnly]);
+  }, [products, query, categoryId, lowOnly, showHidden]);
 
   const reload = () => {
     catalog.reload();
+    hidden.reload();
     brands.reload();
   };
+  const loading = showHidden ? hidden.loading : catalog.loading;
 
   const chip = (active: boolean) =>
     cn(
@@ -102,13 +108,31 @@ export function StockPage() {
             {c.name}
           </button>
         ))}
-        <button type="button" className={cn(chip(lowOnly), lowOnly && "border-amber-500 bg-amber-50 text-amber-900")} onClick={() => setLowOnly((v) => !v)}>
-          {t("stock.lowOnly")}
-        </button>
+        {showHidden ? null : (
+          <button type="button" className={cn(chip(lowOnly), lowOnly && "border-amber-500 bg-amber-50 text-amber-900")} onClick={() => setLowOnly((v) => !v)}>
+            {t("stock.lowOnly")}
+          </button>
+        )}
+        {isOwner && (hiddenProducts.length > 0 || hiddenOnly) ? (
+          <button
+            type="button"
+            aria-pressed={hiddenOnly}
+            className={cn(chip(hiddenOnly), "inline-flex items-center gap-1.5")}
+            onClick={() => {
+              setHiddenOnly((v) => !v);
+              setCategoryId("all");
+            }}
+          >
+            <EyeOff className="size-4" />
+            {t("stock.hiddenOnly", { count: hiddenProducts.length })}
+          </button>
+        ) : null}
       </div>
 
+      {showHidden ? <p className="-mt-2 text-[15px] text-slate-600">{t("stock.hiddenHint")}</p> : null}
+
       <Card>
-        {catalog.loading ? (
+        {loading ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 5 }, (_, i) => (
               <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />
@@ -117,7 +141,9 @@ export function StockPage() {
         ) : shown.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
             <Package className="size-10 text-slate-300" />
-            <p className="text-[15px] text-slate-600">{products.length === 0 ? t("stock.empty") : t("stock.noMatch")}</p>
+            <p className="text-[15px] text-slate-600">
+              {products.length > 0 ? t("stock.noMatch") : showHidden ? t("stock.hiddenEmpty") : t("stock.empty")}
+            </p>
           </div>
         ) : (
           <>
@@ -135,6 +161,7 @@ export function StockPage() {
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] leading-snug font-semibold break-words text-slate-900">{productLabel(p)}</span>
                       <span className="block text-sm text-slate-500">
+                        {p.active ? null : <span className="font-semibold text-amber-800">{t("stock.hiddenBadge")} · </span>}
                         {p.category}
                         {p.retailPrice > 0 ? ` · ${formatRupees(p.retailPrice)}` : ""}
                       </span>

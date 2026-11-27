@@ -13,7 +13,7 @@ const battery: CatalogProduct = {
   id: "p1", brand: "Amaron", categoryId: cat("Inverter battery").id, category: "Inverter battery", categoryOrder: 1,
   gstRate: 1800, model: "Tall Tubular", capacity: "150Ah", type: "", mrp: 1_750_000, retailPrice: 1_450_000,
   dealerPrice: 1_360_000, minPrice: null, hasSerial: true, isService: false, warrantyFreeMonths: 48,
-  warrantyProrataMonths: 24, needsRegistration: true, lowStockLevel: 2, inStock: 3, hsn: "8507",
+  warrantyProrataMonths: 24, needsRegistration: true, lowStockLevel: 2, inStock: 3, hsn: "8507", active: true,
 };
 const trolley: CatalogProduct = { ...battery, id: "p2", brand: null, categoryId: cat("Accessories").id, category: "Accessories",
   model: "Battery Trolley", capacity: "", mrp: null, retailPrice: 80_000, hasSerial: false, warrantyFreeMonths: 0, warrantyProrataMonths: 0 };

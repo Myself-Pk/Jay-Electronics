@@ -26,6 +26,7 @@ interface CatalogRow {
   low_stock_level: number;
   in_stock: number;
   hsn: string;
+  active: boolean;
 }
 
 const money = (v: number | string | null) => (v === null ? null : toPaise(v));
@@ -53,22 +54,34 @@ function rowToProduct(r: CatalogRow): CatalogProduct {
     lowStockLevel: r.low_stock_level,
     inStock: r.in_stock,
     hsn: r.hsn,
+    active: r.active,
   };
 }
 
 /** Every product the shop sells, with live stock. A shop has a few hundred at most, so we load them all. */
-export async function listCatalog(): Promise<CatalogProduct[]> {
+export function listCatalog(): Promise<CatalogProduct[]> {
+  return loadCatalog(true);
+}
+
+/** Products hidden with "Selling this product" off (owner: Stock → Hidden, to bring one back). */
+export function listHiddenCatalog(): Promise<CatalogProduct[]> {
+  return loadCatalog(false);
+}
+
+async function loadCatalog(active: boolean): Promise<CatalogProduct[]> {
   if (!supabase) {
     await previewDelay();
-    return previewDb().products.map((p) => ({ ...structuredClone(p), inStock: previewStockOf(p) }));
+    return previewDb()
+      .products.filter((p) => (p.active !== false) === active)
+      .map((p) => ({ ...structuredClone(p), active: p.active !== false, inStock: previewStockOf(p) }));
   }
   const { data, error } = await supabase
     .from("v_catalog")
     .select(
       "id, brand, category_id, category, category_order, gst_rate_pct, model, capacity, type, mrp, retail_price, dealer_price, min_price, " +
-        "has_serial, is_service, warranty_free_months, warranty_prorata_months, needs_registration, low_stock_level, in_stock, hsn",
+        "has_serial, is_service, warranty_free_months, warranty_prorata_months, needs_registration, low_stock_level, in_stock, hsn, active",
     )
-    .eq("active", true)
+    .eq("active", active)
     .order("category_order")
     .order("model");
   if (error) throw error;
