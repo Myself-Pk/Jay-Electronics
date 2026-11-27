@@ -35,6 +35,7 @@ export function StockPage() {
   const [categoryId, setCategoryId] = useState("all");
   const [lowOnly, setLowOnly] = useState(false);
   const [hiddenOnly, setHiddenOnly] = useState(false);
+  const [availableOnly, setAvailableOnly] = useState(false);
   const [open, setOpen] = useState<CatalogProduct | "new" | null>(null);
   const [importing, setImporting] = useState(false);
 
@@ -47,8 +48,9 @@ export function StockPage() {
     return base
       .filter((p) => categoryId === "all" || p.categoryId === categoryId)
       .filter((p) => showHidden || !lowOnly || isLow(p) || (!p.isService && p.inStock <= 0))
+      .filter((p) => !availableOnly || (!p.isService && p.inStock > 0))
       .sort((a, b) => a.categoryOrder - b.categoryOrder || productLabel(a).localeCompare(productLabel(b)));
-  }, [products, query, categoryId, lowOnly, showHidden]);
+  }, [products, query, categoryId, lowOnly, showHidden, availableOnly]);
 
   const reload = () => {
     catalog.reload();
@@ -108,8 +110,27 @@ export function StockPage() {
             {c.name}
           </button>
         ))}
+        <button
+          type="button"
+          aria-pressed={availableOnly}
+          className={cn(chip(availableOnly), availableOnly && "border-green-600 bg-green-50 text-green-900")}
+          onClick={() => {
+            setAvailableOnly((v) => !v);
+            setLowOnly(false);
+          }}
+        >
+          {t("stock.availableOnly")}
+        </button>
         {showHidden ? null : (
-          <button type="button" className={cn(chip(lowOnly), lowOnly && "border-amber-500 bg-amber-50 text-amber-900")} onClick={() => setLowOnly((v) => !v)}>
+          <button
+            type="button"
+            aria-pressed={lowOnly}
+            className={cn(chip(lowOnly), lowOnly && "border-amber-500 bg-amber-50 text-amber-900")}
+            onClick={() => {
+              setLowOnly((v) => !v);
+              setAvailableOnly(false);
+            }}
+          >
             {t("stock.lowOnly")}
           </button>
         )}

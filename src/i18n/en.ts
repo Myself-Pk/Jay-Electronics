@@ -496,6 +496,7 @@ export const en = {
     searchPlaceholder: "Search product, brand or size…",
     all: "All",
     lowOnly: "Low stock only",
+    availableOnly: "In stock only",
     hiddenOnly: "Hidden ({{count}})",
     hiddenBadge: "Hidden",
     hiddenHint: "These are not shown in billing. Open one and turn on “Selling this product” to bring it back.",

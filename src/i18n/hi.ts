@@ -498,6 +498,7 @@ export const hi: Translations = {
     searchPlaceholder: "सामान, ब्रांड या साइज़ खोजें…",
     all: "सभी",
     lowOnly: "सिर्फ़ कम स्टॉक",
+    availableOnly: "सिर्फ़ स्टॉक में मौजूद",
     hiddenOnly: "छिपे हुए ({{count}})",
     hiddenBadge: "छिपा हुआ",
     hiddenHint: "ये बिलिंग में नहीं दिखते। किसी को खोलें और “यह सामान बिक रहा है” चालू करें, तो वापस आ जाएगा।",
