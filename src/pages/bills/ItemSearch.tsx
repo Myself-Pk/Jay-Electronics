@@ -78,15 +78,25 @@ export function ItemSearch({ catalog, onPick, onEnterText, onNewSerial, placehol
 
   /** A code from the camera or a scanner: a linked product, else the screen's own check (serials). */
   const handleCode = async (code: string): Promise<{ result: "added" | "refused" | "unknown"; label: string }> => {
+    // A known serial number comes first: a piece's own code must never be read as a product barcode.
+    const answer = await onEnterText(code);
+    if (answer !== false) {
+      return "refused" in answer ? { result: "refused", label: answer.refused } : { result: "added", label: answer.added };
+    }
     const productId = await findProductByBarcode(code).catch(() => null);
     const product = productId ? catalog.find((p) => p.id === productId) : undefined;
+    if (product && product.hasSerial && onNewSerial) {
+      // A code linked to a battery / inverter (from before serials were on) is that piece's serial.
+      const refused = await onNewSerial(product, code);
+      return refused
+        ? { result: "refused", label: refused }
+        : { result: "added", label: t("scan.serialOf", { serial: code.toUpperCase(), product: productLabel(product) }) };
+    }
     if (product) {
       const refused = pick(product, { scanned: true });
       return refused ? { result: "refused", label: refused } : { result: "added", label: productLabel(product) };
     }
-    const answer = await onEnterText(code);
-    if (answer === false) return { result: "unknown", label: code };
-    return "refused" in answer ? { result: "refused", label: answer.refused } : { result: "added", label: answer.added };
+    return { result: "unknown", label: code };
   };
 
   const onCameraCode = async (code: string): Promise<ScanOutcome> => {
