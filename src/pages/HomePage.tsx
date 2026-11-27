@@ -238,7 +238,7 @@ export function HomePage() {
                 <li key={p.product} className="flex items-center gap-3 px-5 py-3 sm:px-6">
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-600">{i + 1}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium text-slate-800">{p.product}</span>
+                    <span className="block text-[15px] leading-snug font-medium break-words text-slate-800">{p.product}</span>
                     <span className="block text-sm text-slate-500">{t("home.sold", { count: p.qty })}</span>
                   </span>
                   <span className="shrink-0 text-right font-semibold text-slate-900 tabular-nums">{formatRupees(p.amount, { paise: "never" })}</span>

@@ -80,7 +80,7 @@ export function MoveUnitDialog({ unit, onClose, onMoved }: { unit: WarrantyUnit 
                   className="flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-brand-50 disabled:opacity-60"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold text-slate-900">{productLabel(p)}</span>
+                    <span className="block text-[15px] leading-snug font-semibold break-words text-slate-900">{productLabel(p)}</span>
                     <span className="block text-sm text-slate-500">{p.category}</span>
                   </span>
                 </button>

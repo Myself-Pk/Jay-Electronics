@@ -133,7 +133,7 @@ export function StockPage() {
                     className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-slate-50 sm:px-6"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-slate-900">{productLabel(p)}</span>
+                      <span className="block text-[15px] leading-snug font-semibold break-words text-slate-900">{productLabel(p)}</span>
                       <span className="block text-sm text-slate-500">
                         {p.category}
                         {p.retailPrice > 0 ? ` · ${formatRupees(p.retailPrice)}` : ""}

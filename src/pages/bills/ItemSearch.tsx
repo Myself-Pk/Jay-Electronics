@@ -246,19 +246,21 @@ export function ItemSearch({ catalog, onPick, onEnterText, onNewSerial, placehol
                       i === highlight ? "bg-brand-50" : "hover:bg-slate-50",
                     )}
                   >
+                    {/* Full product name, wrapping if needed; on phones the stock badge sits under it. */}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-slate-900">{productLabel(p)}</span>
-                      <span className="block text-sm text-slate-500">{p.category}</span>
+                      <span className="block text-[15px] leading-snug font-semibold break-words text-slate-900">{productLabel(p)}</span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+                        {p.category}
+                        <span className="sm:hidden">
+                          <StockBadge product={p} />
+                        </span>
+                      </span>
                     </span>
-                    {p.isService ? (
-                      <Badge>{t("newBill.service")}</Badge>
-                    ) : p.inStock > 0 ? (
-                      <Badge tone="green">{t("newBill.inStock", { count: p.inStock })}</Badge>
-                    ) : (
-                      <Badge tone="amber">{t("newBill.outOfStock")}</Badge>
-                    )}
+                    <span className="hidden shrink-0 sm:inline-flex">
+                      <StockBadge product={p} />
+                    </span>
                     {p.retailPrice > 0 ? (
-                      <span className="w-20 text-right text-[15px] font-semibold text-slate-800 tabular-nums">
+                      <span className="shrink-0 text-right text-[15px] font-semibold text-slate-800 tabular-nums sm:w-20">
                         {formatRupees(p.retailPrice)}
                       </span>
                     ) : null}
@@ -285,6 +287,14 @@ export function ItemSearch({ catalog, onPick, onEnterText, onNewSerial, placehol
       />
     </div>
   );
+}
+
+/** "Service", "3 in stock" or "Out of stock". */
+function StockBadge({ product }: { product: CatalogProduct }) {
+  const { t } = useTranslation();
+  if (product.isService) return <Badge>{t("newBill.service")}</Badge>;
+  if (product.inStock > 0) return <Badge tone="green">{t("newBill.inStock", { count: product.inStock })}</Badge>;
+  return <Badge tone="amber">{t("newBill.outOfStock")}</Badge>;
 }
 
 /** "New code — which product is this?" with its own search box. */
@@ -333,7 +343,7 @@ function LinkCodeDialog({
           >
             <span className="min-w-0 flex-1">
               <span className="block text-xs font-semibold tracking-wide text-brand-800 uppercase">{t("scan.sameAsBefore")}</span>
-              <span className="block truncate text-[16px] font-semibold text-slate-900">{productLabel(suggest)}</span>
+              <span className="block text-[16px] leading-snug font-semibold break-words text-slate-900">{productLabel(suggest)}</span>
             </span>
             {serials && suggest.hasSerial ? <Badge tone="green">{t("scan.asSerial")}</Badge> : null}
           </button>
@@ -352,7 +362,7 @@ function LinkCodeDialog({
                   className="flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-brand-50"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold text-slate-900">{productLabel(p)}</span>
+                    <span className="block text-[15px] leading-snug font-semibold break-words text-slate-900">{productLabel(p)}</span>
                     <span className="block text-sm text-slate-500">{p.category}</span>
                   </span>
                   {serials && p.hasSerial ? <Badge tone="green">{t("scan.asSerial")}</Badge> : null}

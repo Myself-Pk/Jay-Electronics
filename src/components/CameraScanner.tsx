@@ -179,7 +179,7 @@ export function CameraScanner({ open, onClose, onCode, session = 0, later = null
         {last ? (
           <p className="flex items-center gap-2 rounded-xl bg-emerald-600/90 px-4 py-2.5 text-[15px] font-semibold" role="status">
             <CircleCheck className="size-5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{t("scan.added", { product: last })}</span>
+            <span className="min-w-0 flex-1 break-words">{t("scan.added", { product: last })}</span>
             <span className="text-sm font-normal text-white/90">{t("scan.count", { count })}</span>
           </p>
         ) : (
