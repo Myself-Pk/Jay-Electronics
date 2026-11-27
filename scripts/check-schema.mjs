@@ -3,11 +3,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 
 const OWNER = "00000000-0000-0000-0000-00000000000a";
 const STAFF = "00000000-0000-0000-0000-00000000000b";
 
-const db = new PGlite();
+const db = new PGlite({ extensions: { pgcrypto } });
 let failures = 0;
 
 async function check(label, fn) {
@@ -42,7 +43,19 @@ async function as(personId, sql, params, role = "authenticated") {
 // Minimal stand-ins for what Supabase provides.
 await db.exec(`
   create schema auth;
-  create table auth.users (id uuid primary key, email text);
+  create table auth.users (
+    id uuid primary key, email text, instance_id uuid, aud text, role text, encrypted_password text,
+    email_confirmed_at timestamptz, raw_app_meta_data jsonb, raw_user_meta_data jsonb, created_at timestamptz, updated_at timestamptz,
+    confirmation_token text, recovery_token text, email_change_token_new text, email_change text,
+    email_change_token_current text, phone_change text, phone_change_token text, reauthentication_token text,
+    is_sso_user boolean, is_anonymous boolean
+  );
+  create table auth.identities (
+    id uuid primary key default gen_random_uuid(), provider_id text not null, user_id uuid not null references auth.users (id),
+    identity_data jsonb not null, provider text not null, created_at timestamptz, updated_at timestamptz
+  );
+  create schema extensions;
+  create extension pgcrypto schema extensions;
   create function auth.uid() returns uuid language sql stable
     as $$ select nullif(current_setting('test.uid', true), '')::uuid $$;
   create role anon nologin;
@@ -887,6 +900,32 @@ await check("remove_unit: only the owner removes a serial entered by mistake; it
     blocked = /permission denied/.test(err.message);
   }
   if (!blocked) throw new Error("remove_unit is callable without logging in");
+});
+
+await check("add_person / set_person_pin: only the owner adds a login and sets a PIN; the PIN is stored hashed", async () => {
+  await expectBillError(STAFF, () => call(STAFF, "add_person", { name: "Mahesh", role: "staff", pin: "246810" }), "owner_only");
+  await expectBillError(OWNER, () => call(OWNER, "add_person", { name: "Mahesh", role: "staff", pin: "12345" }), "person_bad_pin");
+  await expectBillError(OWNER, () => call(OWNER, "add_person", { name: "Staff 1", role: "staff", pin: "246810" }), "person_exists");
+  const id = await call(OWNER, "add_person", { name: "Mahesh Kumar", role: "staff", pin: "246810" });
+  const u = (await db.query("select email, encrypted_password = extensions.crypt('246810', encrypted_password) ok, aud, confirmation_token from auth.users where id = $1", [id])).rows[0];
+  const person = (await db.query("select name, role, login_email from public.people where id = $1", [id])).rows[0];
+  const ident = (await db.query("select provider, provider_id from auth.identities where user_id = $1", [id])).rows[0];
+  if (!u?.ok || u.aud !== "authenticated" || u.confirmation_token !== "" || !/^mahesh-kumar-[0-9a-f]{6}@jay-electronics\.invalid$/.test(u.email))
+    throw new Error(JSON.stringify(u));
+  if (person.role !== "staff" || person.login_email !== u.email || ident.provider !== "email" || ident.provider_id !== id) throw new Error(JSON.stringify({ person, ident }));
+  if ((await as(null, "select name from public.login_people()")).rows.every((r) => r.name !== "Mahesh Kumar")) throw new Error("not on the login screen");
+
+  await expectBillError(STAFF, () => call(STAFF, "set_person_pin", { person_id: id, pin: "135790" }), "owner_only");
+  await call(OWNER, "set_person_pin", { person_id: id, pin: "135790" });
+  const changed = (await db.query("select encrypted_password = extensions.crypt('135790', encrypted_password) ok from auth.users where id = $1", [id])).rows[0].ok;
+  if (!changed) throw new Error("PIN not changed");
+  let blocked = false;
+  try {
+    await call(null, "add_person", { name: "X", role: "owner", pin: "111111" }, "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("add_person is callable without logging in");
 });
 
 await db.close();

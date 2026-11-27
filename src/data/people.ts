@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { NotAvailableYetError } from "./errors";
+import { asBillError } from "./errors";
 import { persistPreview, previewDelay, previewStore } from "./preview-store";
 import type { LoginPerson, Person, Role } from "./types";
 
@@ -71,8 +71,12 @@ export async function addPerson(input: NewPerson): Promise<Person> {
     persistPreview();
     return structuredClone(person);
   }
-  // Creating a login needs a secure server function (Supabase Edge Function). Comes with the database setup.
-  throw new NotAvailableYetError("Adding people");
+  // The database makes the login itself (owner / admin only), so the app never holds the secret key.
+  const { data, error } = await supabase.rpc("add_person", { p: { name: input.name, role: input.role, pin: input.pin } });
+  if (error) throw asBillError(error) ?? error;
+  const person = await getPerson(data as string);
+  if (!person) throw new Error("person not saved");
+  return person;
 }
 
 export async function updatePerson(id: string, changes: Pick<Person, "name" | "role" | "active">): Promise<void> {
@@ -97,6 +101,7 @@ export async function changePin(id: string, pin: string, currentPersonId: string
     if (error) throw error;
     return;
   }
-  // Changing someone else's PIN needs the same secure server function as adding people.
-  throw new NotAvailableYetError("Changing another person's PIN");
+  // Someone else's PIN: owner / admin only, checked in the database.
+  const { error } = await supabase.rpc("set_person_pin", { p: { person_id: id, pin } });
+  if (error) throw asBillError(error) ?? error;
 }

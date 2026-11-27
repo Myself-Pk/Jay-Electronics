@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { RadioCard } from "@/components/ui/RadioCard";
 import { Switch } from "@/components/ui/Switch";
 import { useToast } from "@/components/ui/Toast";
-import { NotAvailableYetError } from "@/data/errors";
+import { asBillError, NotAvailableYetError } from "@/data/errors";
 import { addPerson, changePin, listPeople, updatePerson } from "@/data/people";
 import type { Person, Role } from "@/data/types";
 import { useAsync } from "@/lib/useAsync";
@@ -128,7 +128,9 @@ function PersonDialog({
       onSaved();
       onClose();
     } catch (err) {
-      if (err instanceof NotAvailableYetError) toast(t("common.notYet"), "info");
+      const be = asBillError(err);
+      if (be) toast(t(`billErrors.${be.code}`, be.details), "error");
+      else if (err instanceof NotAvailableYetError) toast(t("common.notYet"), "info");
       else {
         console.error(err);
         toast(t("common.somethingWrong"), "error");
@@ -215,7 +217,9 @@ function PinDialog({ person, onClose }: { person: Person | null; onClose: () => 
       toast(t("settings.people.pinChanged", { name: person.name }));
       onClose();
     } catch (err) {
-      if (err instanceof NotAvailableYetError) toast(t("common.notYet"), "info");
+      const be = asBillError(err);
+      if (be) toast(t(`billErrors.${be.code}`, be.details), "error");
+      else if (err instanceof NotAvailableYetError) toast(t("common.notYet"), "info");
       else {
         console.error(err);
         toast(t("common.somethingWrong"), "error");
