@@ -3,8 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { asBillError } from "./errors";
 import { previewDb } from "./preview-billing";
 import { previewDelay } from "./preview-store";
-import { previewMoveUnit, previewReceiveStock } from "./preview-stock";
-import type { PurchaseSummary, StockEntryInput, Supplier } from "./types";
+import { previewMoveUnit, previewReceiveStock, previewRemoveUnit } from "./preview-stock";
+import type { PurchaseSummary, Role, StockEntryInput, Supplier } from "./types";
 
 export async function listSuppliers(): Promise<Supplier[]> {
   if (!supabase) return previewDb().suppliers.map((s) => ({ ...s }));
@@ -47,6 +47,17 @@ export async function moveUnit(unitId: string, productId: string): Promise<void>
   }
   const { error } = await supabase.rpc("move_unit", { p: { unit_id: unitId, product_id: productId } });
   if (error) throw asBillError(error) ?? error;
+}
+
+/** Owner / admin: take a serial entered by mistake off the stock (not a sale). Returns the serial. */
+export async function removeUnit(unitId: string, role: Role, reason = ""): Promise<string> {
+  if (!supabase) {
+    await previewDelay(250);
+    return previewRemoveUnit(unitId, role);
+  }
+  const { data, error } = await supabase.rpc("remove_unit", { p: { unit_id: unitId, reason } });
+  if (error) throw asBillError(error) ?? error;
+  return data as string;
 }
 
 /** Recent stock entries with amounts. Owner only: the database shows staff nothing here. */

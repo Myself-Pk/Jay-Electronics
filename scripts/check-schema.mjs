@@ -864,6 +864,31 @@ await check("serials: a product with no stock can switch to serials; a piece in 
   if (!blocked) throw new Error("move_unit is callable without logging in");
 });
 
+await check("remove_unit: only the owner removes a serial entered by mistake; it can be scanned again; sold ones stay", async () => {
+  const cat = (await db.query("select id from public.categories where name = 'Inverter battery'")).rows[0].id;
+  const prod = (await db.query("insert into public.products (category_id, model, retail_price, has_serial) values ($1, 'Remove test', 100, true) returning id", [cat])).rows[0].id;
+  await call(STAFF, "receive_stock", { kind: "opening_stock", items: [{ product_id: prod, rate: 0, serials: ["RM-001", "RM-002"] }] });
+  const unit = async (s) => (await db.query("select id from public.units where serial_no = $1", [s])).rows[0]?.id;
+  const u1 = await unit("RM-001");
+  await expectBillError(STAFF, () => call(STAFF, "remove_unit", { unit_id: u1 }), "owner_only");
+  const removed = await call(OWNER, "remove_unit", { unit_id: u1 });
+  if (removed !== "RM-001" || (await unit("RM-001")) || (await stockOf(prod)) !== 1) throw new Error(`not removed: ${removed}, stock ${await stockOf(prod)}`);
+  const notes = (await db.query("select note from public.stock_history where product_id = $1 and note like '%RM-001%'", [prod])).rows.length;
+  if (notes !== 2) throw new Error(`history lines with the serial: ${notes}`);
+  await call(STAFF, "receive_stock", { kind: "opening_stock", items: [{ product_id: prod, rate: 0, serials: ["rm-001"] }] }); // scanned again
+  if ((await stockOf(prod)) !== 2) throw new Error("serial could not be scanned again");
+  await saveBill(STAFF, { customer: { phone: "9876500001" }, items: [{ product_id: prod, serial_no: "RM-002", qty: 1, rate: 100 }], payments: [{ mode: "cash", amount: 100, charges: 0 }] });
+  const u2 = await unit("RM-002");
+  await expectBillError(OWNER, () => call(OWNER, "remove_unit", { unit_id: u2 }), "unit_not_in_stock");
+  let blocked = false;
+  try {
+    await call(null, "remove_unit", { unit_id: await unit("RM-001") }, "anon");
+  } catch (err) {
+    blocked = /permission denied/.test(err.message);
+  }
+  if (!blocked) throw new Error("remove_unit is callable without logging in");
+});
+
 await db.close();
 if (failures > 0) {
   console.log(`\n${failures} check(s) failed.`);

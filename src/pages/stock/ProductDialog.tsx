@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ShieldCheck } from "lucide-react";
+import { ChevronDown, ShieldCheck, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +17,7 @@ import { warrantyText } from "@/lib/billMath";
 import { formatDate } from "@/lib/dates";
 import { formatRupees } from "@/lib/money";
 import { draftToProductInput, emptyProductDraft, productToDraft, type ProductDraft, type ProductErrors } from "./productForm";
+import { useRemoveSerial } from "./useRemoveSerial";
 
 interface Props {
   open: boolean;
@@ -39,6 +40,7 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
   const [units, setUnits] = useState<StockUnit[] | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [saving, setSaving] = useState(false);
+  const removeSerial = useRemoveSerial(role);
 
   useEffect(() => {
     if (!open) return;
@@ -98,10 +100,28 @@ export function ProductDialog({ open, product, categories, brands, role, onClose
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {units.map((u) => (
-              <li key={u.id} className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm">
-                <span className="font-mono font-semibold text-slate-800">{u.serial}</span>
-                {u.arrivedOn ? (
-                  <span className="text-slate-500"> · {t("stock.arrived", { date: formatDate(u.arrivedOn, i18n.language) })}</span>
+              <li key={u.id} className="flex items-center gap-1 rounded-lg bg-slate-100 py-1 pr-1 pl-2.5 text-sm">
+                <span>
+                  <span className="font-mono font-semibold text-slate-800">{u.serial}</span>
+                  {u.arrivedOn ? (
+                    <span className="text-slate-500"> · {t("stock.arrived", { date: formatDate(u.arrivedOn, i18n.language) })}</span>
+                  ) : null}
+                </span>
+                {isOwner ? (
+                  <button
+                    type="button"
+                    aria-label={t("stock.removeSerial", { serial: u.serial })}
+                    title={t("stock.removeSerial", { serial: u.serial })}
+                    onClick={async () => {
+                      const removed = await removeSerial({ unitId: u.id, serial: u.serial, product: productLabel(product), inStock: units.length });
+                      if (!removed) return;
+                      setUnits((list) => (list ?? []).filter((x) => x.id !== u.id));
+                      onSaved();
+                    }}
+                    className="flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <X className="size-4" />
+                  </button>
                 ) : null}
               </li>
             ))}

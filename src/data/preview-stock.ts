@@ -82,6 +82,18 @@ export function previewMoveUnit(unitId: string, productId: string): void {
   persistPreview();
 }
 
+/** Same rules as remove_unit: owner / admin only, a piece in the shop that was never sold. */
+export function previewRemoveUnit(unitId: string, role: Role): string {
+  if (!canSeeOwnerData(role)) throw new BillError("owner_only");
+  const db = previewDb();
+  const unit = db.units.find((u) => u.id === unitId);
+  if (!unit) throw new BillError("unit_not_found");
+  if (unit.status !== "in_stock" || unit.billId) throw new BillError("unit_not_in_stock", { serial: unit.serial });
+  db.units.splice(db.units.indexOf(unit), 1);
+  persistPreview();
+  return unit.serial;
+}
+
 export function previewReceiveStock(input: StockEntryInput): string {
   const db = previewDb();
   if (input.items.length === 0) throw new BillError("no_items");

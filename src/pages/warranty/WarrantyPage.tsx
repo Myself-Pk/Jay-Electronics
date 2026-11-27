@@ -16,6 +16,9 @@ import { formatDate, todayISO } from "@/lib/dates";
 import { useAsync } from "@/lib/useAsync";
 import { isOverdueRegistration } from "@/lib/warranty";
 import { formatPhone } from "../bills/CustomerSection";
+import { useSession } from "@/auth/SessionProvider";
+import { canSeeOwnerData } from "@/data/types";
+import { useRemoveSerial } from "../stock/useRemoveSerial";
 import { MoveUnitDialog } from "./MoveUnitDialog";
 import { OldSaleDialog } from "./OldSaleDialog";
 import { UnitCard } from "./UnitCard";
@@ -35,6 +38,13 @@ export function WarrantyPage() {
   const [saving, setSaving] = useState(false);
   const [oldOpen, setOldOpen] = useState(false);
   const [moving, setMoving] = useState<WarrantyUnit | null>(null);
+  const { person } = useSession();
+  const removeSerial = useRemoveSerial(person?.role);
+  const onRemove = canSeeOwnerData(person?.role)
+    ? async (u: WarrantyUnit) => {
+        if (await removeSerial({ unitId: u.unitId, serial: u.serial, product: u.product })) reload();
+      }
+    : undefined;
   const today = todayISO();
 
   // Search a moment after typing stops (a barcode scanner's Enter searches at once).
@@ -125,7 +135,7 @@ export function WarrantyPage() {
             <p className="text-sm font-semibold text-slate-500">{t("warranty.results", { count: list.length })}</p>
             <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {list.map((u) => (
-                <UnitCard key={u.unitId} unit={u} today={today} onMark={openMark} onMove={setMoving} />
+                <UnitCard key={u.unitId} unit={u} today={today} onMark={openMark} onMove={setMoving} onRemove={onRemove} />
               ))}
             </ul>
           </section>

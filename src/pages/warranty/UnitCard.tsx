@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ArrowRightLeft, BadgeCheck, ShieldAlert, ShieldCheck, ShieldOff, ShieldQuestion, Store } from "lucide-react";
+import { ArrowRightLeft, BadgeCheck, Trash2, ShieldAlert, ShieldCheck, ShieldOff, ShieldQuestion, Store } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -30,12 +30,15 @@ export function UnitCard({
   today,
   onMark,
   onMove,
+  onRemove,
 }: {
   unit: WarrantyUnit;
   today: string;
   onMark: (unit: WarrantyUnit) => void;
   /** Saved under the wrong product? Only for pieces still in the shop. */
   onMove?: (unit: WarrantyUnit) => void;
+  /** Owner / admin: take a serial entered by mistake off the stock. */
+  onRemove?: (unit: WarrantyUnit) => void;
 }) {
   const { t, i18n } = useTranslation();
   const date = (iso: string) => formatDate(iso, i18n.language);
@@ -121,6 +124,11 @@ export function UnitCard({
             <Button size="sm" variant="secondary" icon={ArrowRightLeft} onClick={() => onMove(unit)}>
               {t("warranty.changeProduct")}
             </Button>
+            {onRemove ? (
+              <Button size="sm" variant="ghost" icon={Trash2} onClick={() => onRemove(unit)} className="text-red-700 hover:bg-red-50">
+                {t("stock.removeSerialShort")}
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
